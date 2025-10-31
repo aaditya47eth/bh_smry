@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - User Management</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/admin_panel.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
+            </div>
+            <div class="header-actions">
+                <span class="user-name" id="userName" onclick="window.location.href='person_view.html'"></span>
+                <button onclick="logout()" class="header-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="breadcrumb-container">
+        <div class="breadcrumb-content">
+            <nav class="breadcrumb">
+                <a href="dashboard.html">Dashboard</a>
+                <span class="breadcrumb-separator">/</span>
+                <span class="breadcrumb-current">Admin Panel</span>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="container">
+
+        <div class="user-info">
+            Logged in as: <strong id="currentUserName"></strong> (<span id="currentUserRole"></span>)
+        </div>
+
+        <div class="controls">
+            <button onclick="openAddUserModal()" class="btn btn-primary">➕ Add New User</button>
+        </div>
+
+        <div class="users-container">
+            <h2>All Users</h2>
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Number</th>
+                        <th>Access Level</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <!-- Users will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New User</h2>
+                <span class="close" onclick="closeAddUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="form-group">
+                        <label for="newUsername">Username:</label>
+                        <input type="text" id="newUsername" required placeholder="Enter username">
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">Password:</label>
+                        <div class="password-input-group">
+                            <input type="password" id="newPassword" required placeholder="Enter password">
+                            <button type="button" class="toggle-password" onclick="togglePassword('newPassword')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="newName">Number:</label>
+                        <input type="text" id="newName" required placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label for="newAccessLevel">Access Level:</label>
+                        <select id="newAccessLevel" required>
+                            <option value="viewer">Viewer</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="closeAddUserModal()" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div id="editUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit User</h2>
+                <span class="close" onclick="closeEditUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId">
+                    <div class="form-group">
+                        <label for="editUsername">Username:</label>
+                        <input type="text" id="editUsername" required placeholder="Enter username">
+                    </div>
+                    <div class="form-group">
+                        <label for="editPassword">Password:</label>
+                        <div class="password-input-group">
+                            <input type="password" id="editPassword" placeholder="Leave blank to keep current password">
+                            <button type="button" class="toggle-password" onclick="togglePassword('editPassword')">👁️</button>
+                        </div>
+                        <small>Leave blank if you don't want to change the password</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editName">Number:</label>
+                        <input type="text" id="editName" required placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label for="editAccessLevel">Access Level:</label>
+                        <select id="editAccessLevel" required>
+                            <option value="viewer">Viewer</option>
+                            <option value="manager">Manager</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="closeEditUserModal()" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Update User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/supabase-config.js"></script>
+    <script src="js/admin_panel.js"></script>
+</body>
+</html>
+

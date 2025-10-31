@@ -1,0 +1,867 @@
+// ============================================
+// LOT VIEW PAGE LOGIC
+// ============================================
+
+// Cloudinary Configuration
+const CLOUDINARY_CLOUD_NAME = 'daye1yfzy';
+const CLOUDINARY_UPLOAD_PRESET = 'bh_smry_upload';
+
+let imageSize = 100; // 4 steps decreased from 180 (default smaller)
+let priceSize = 1.0; // 4 steps decreased from 1.8
+let labelSize = 0.9; // 4 steps decreased from 1.5
+let totalSize = 0.9; // 4 steps decreased from 1.5
+let currentLot = null;
+let lotItems = [];
+let pastedImage = null;
+let showTotals = true; // Control total visibility
+
+// Get lot ID and name from URL
+function getLotInfo() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        id: params.get('lot_id'),
+        name: params.get('lot_name')
+    };
+}
+
+// Initialize page
+window.addEventListener('DOMContentLoaded', () => {
+    if (!isAuthenticated()) {
+        window.location.href = 'index.html';
+        return;
+    }
+
+    const user = getCurrentUser();
+    document.getElementById('userName').textContent = user.username;
+
+    const lotInfo = getLotInfo();
+    if (!lotInfo.id) {
+        alert('No lot selected');
+        window.location.href = 'dashboard.html';
+        return;
+    }
+
+    currentLot = lotInfo;
+    document.getElementById('lotTitle').textContent = decodeURIComponent(lotInfo.name);
+    
+    // Apply initial sizes (2 steps decreased)
+    updateSizes();
+    
+    // Show add button only for admin/manager
+    if (hasPermission('add')) {
+        document.getElementById('addNewBtn').style.display = 'inline-block';
+    }
+
+    loadLotItems();
+    setupPasteArea();
+});
+
+// Load items for this lot
+async function loadLotItems() {
+    try {
+        // Fetch lot details including created date
+        const { data: lotData, error: lotError } = await supabaseClient
+            .from('lots')
+            .select('*')
+            .eq('id', currentLot.id)
+            .single();
+        
+        if (lotError) throw lotError;
+        
+        // Update current lot with full data
+        currentLot = { ...currentLot, ...lotData };
+        
+        // Update lot title with creation date
+        const createdDate = new Date(currentLot.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+        document.getElementById('lotTitle').textContent = `${decodeURIComponent(currentLot.name)} (${createdDate})`;
+        
+        const { data, error } = await supabaseClient
+            .from('items')
+            .select('*')
+            .eq('lot_id', currentLot.id)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        lotItems = data || [];
+        renderGallery();
+    } catch (error) {
+        console.error('Error loading lot items:', error);
+        document.getElementById('gallery').innerHTML = 
+            '<div class="loading">Error loading items</div>';
+    }
+}
+
+// Render gallery
+function renderGallery() {
+    const gallery = document.getElementById('gallery');
+    gallery.innerHTML = '';
+
+    if (lotItems.length === 0) {
+        gallery.innerHTML = '<div class="loading">No items in this lot yet. Click "Add New" to add items.</div>';
+        return;
+    }
+
+    // Group items by username
+    const userGroups = {};
+    lotItems.forEach(item => {
+        if (!userGroups[item.username]) {
+            userGroups[item.username] = [];
+        }
+        userGroups[item.username].push(item);
+    });
+
+    // Sort usernames in ascending order
+    const sortedUsernames = Object.keys(userGroups).sort((a, b) => a.localeCompare(b));
+
+    // Render each user's items
+    sortedUsernames.forEach(username => {
+        const userItems = userGroups[username];
+        const userSection = document.createElement('div');
+        userSection.className = 'user-section';
+
+        const itemsGrid = document.createElement('div');
+        itemsGrid.className = 'items-grid';
+
+        // Calculate total for this user (excluding cancelled items)
+        const total = userItems.reduce((sum, item) => {
+            if (!item.cancelled) {
+                return sum + parseFloat(item.price);
+            }
+            return sum;
+        }, 0);
+
+        userItems.forEach(item => {
+            const itemCard = document.createElement('div');
+            itemCard.className = 'item-card';
+            itemCard.dataset.itemId = item.id;
+            itemCard.dataset.cancelled = item.cancelled || 'false';
+            
+            // Create price element (hide if cancelled)
+            const priceDiv = document.createElement('div');
+            priceDiv.className = 'price';
+            
+            // Hide price if item is cancelled
+            if (item.cancelled) {
+                priceDiv.style.visibility = 'hidden';
+            } else {
+                // Only make editable for admin/manager if not cancelled
+                if (hasPermission('edit')) {
+                    priceDiv.contentEditable = 'true';
+                    priceDiv.addEventListener('blur', function() {
+                        updateItemPrice(item.id, this);
+                    });
+                    priceDiv.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            this.blur();
+                        }
+                        // Only allow numbers and decimal point
+                        if (!/[\d.]/.test(e.key)) {
+                            e.preventDefault();
+                        }
+                    });
+                }
+            }
+            
+            priceDiv.textContent = item.price;
+            itemCard.appendChild(priceDiv);
+            
+            // Add image with hover menu
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'item-image-container';
+            const img = document.createElement('img');
+            img.src = item.picture_url;
+            img.alt = username;
+            img.className = 'item-image';
+            img.loading = 'lazy';
+            img.crossOrigin = 'anonymous'; // Enable CORS for PNG generation
+            
+            // Add cancelled overlay if item is cancelled
+            if (item.cancelled) {
+                const cancelOverlay = document.createElement('div');
+                cancelOverlay.className = 'cancel-overlay';
+                cancelOverlay.innerHTML = '❌';
+                imgContainer.appendChild(cancelOverlay);
+            }
+            
+            imgContainer.appendChild(img);
+            
+            // Add three-dot menu for admin/manager
+            if (hasPermission('edit')) {
+                const menuContainer = document.createElement('div');
+                menuContainer.className = 'item-menu';
+                menuContainer.innerHTML = `
+                    <button class="item-menu-btn" onclick="toggleItemMenu(event, '${item.id}')">⋮</button>
+                    <div class="item-menu-dropdown" id="item-menu-${item.id}">
+                        <button onclick="openPassModal('${item.id}', event)">Pass</button>
+                        <button onclick="toggleCancelItem('${item.id}', event)">${item.cancelled ? 'Restore' : 'Cancel'}</button>
+                        <button class="delete-menu-item" onclick="deleteItem('${item.id}', event)">Delete</button>
+                    </div>
+                `;
+                imgContainer.appendChild(menuContainer);
+            }
+            
+            itemCard.appendChild(imgContainer);
+
+            itemsGrid.appendChild(itemCard);
+        });
+
+        userSection.appendChild(itemsGrid);
+        
+        // Add username and total label below the grid
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'item-label';
+        
+        // Make username clickable for admin/manager
+        if (hasPermission('edit')) {
+            const usernameSpan = document.createElement('span');
+            usernameSpan.className = 'username-link';
+            usernameSpan.textContent = username;
+            usernameSpan.style.cursor = 'pointer';
+            usernameSpan.onclick = () => {
+                window.location.href = `person_view.html?username=${encodeURIComponent(username)}`;
+            };
+            
+            if (showTotals) {
+                labelDiv.appendChild(usernameSpan);
+                labelDiv.appendChild(document.createTextNode(` - `));
+                
+                // Create hoverable total span that switches to "Add new" on hover
+                const totalSpan = document.createElement('span');
+                totalSpan.className = 'total-hover';
+                totalSpan.textContent = `Total: ${total.toFixed(0)}`;
+                totalSpan.dataset.hoverText = 'Add new';
+                totalSpan.onclick = () => {
+                    openAddModal(username);
+                };
+                labelDiv.appendChild(totalSpan);
+            } else {
+                labelDiv.appendChild(usernameSpan);
+            }
+        } else {
+            // Regular text for viewers
+            if (showTotals) {
+                labelDiv.textContent = `${username} - Total: ${total.toFixed(0)}`;
+            } else {
+                labelDiv.textContent = username;
+            }
+        }
+        
+        userSection.appendChild(labelDiv);
+        
+        gallery.appendChild(userSection);
+    });
+}
+
+// Toggle show/hide totals
+function toggleShowTotals() {
+    showTotals = !showTotals;
+    renderGallery();
+}
+
+// Update item price
+async function updateItemPrice(itemId, priceElement) {
+    const newPrice = parseFloat(priceElement.textContent) || 0;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('items')
+            .update({ price: newPrice })
+            .eq('id', itemId);
+
+        if (error) throw error;
+
+        // Reload to recalculate totals
+        await loadLotItems();
+    } catch (error) {
+        console.error('Error updating price:', error);
+        alert('Failed to update price');
+        await loadLotItems(); // Reload to reset
+    }
+}
+
+// Size control functions
+function updateSizes() {
+    document.documentElement.style.setProperty('--image-size', imageSize + 'px');
+    document.documentElement.style.setProperty('--price-size', priceSize + 'em');
+    document.documentElement.style.setProperty('--label-size', labelSize + 'em');
+    document.documentElement.style.setProperty('--total-size', totalSize + 'em');
+}
+
+function decreaseSize() {
+    imageSize = Math.max(60, imageSize - 20); // Allow smaller minimum
+    priceSize = Math.max(0.6, priceSize - 0.2);
+    labelSize = Math.max(0.6, labelSize - 0.15);
+    totalSize = Math.max(0.6, totalSize - 0.15);
+    updateSizes();
+}
+
+function increaseSize() {
+    imageSize = Math.min(300, imageSize + 20);
+    priceSize = Math.min(3.0, priceSize + 0.2);
+    labelSize = Math.min(2.5, labelSize + 0.15);
+    totalSize = Math.min(2.5, totalSize + 0.15);
+    updateSizes();
+}
+
+function resetSize() {
+    imageSize = 100; // 4 steps decreased from 180 (default smaller)
+    priceSize = 1.0; // 4 steps decreased from 1.8
+    labelSize = 0.9; // 4 steps decreased from 1.5
+    totalSize = 0.9; // 4 steps decreased from 1.5
+    updateSizes();
+}
+
+// Generate PNG with cropped images
+async function generatePNG() {
+    const gallery = document.getElementById('gallery');
+    const button = event.target;
+    
+    button.disabled = true;
+    button.textContent = '⏳ Generating...';
+    
+    // Get all images
+    const allImages = gallery.querySelectorAll('.item-image');
+    const replacements = [];
+    
+    try {
+        // Replace each image with a canvas showing the cropped version
+        for (const img of allImages) {
+            const container = img.parentElement;
+            const containerWidth = container.offsetWidth;
+            const containerHeight = container.offsetHeight;
+            
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = containerWidth;
+            canvas.height = containerHeight;
+            canvas.style.width = containerWidth + 'px';
+            canvas.style.height = containerHeight + 'px';
+            canvas.style.borderRadius = '8px';
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Calculate scaling to cover (same as object-fit: cover)
+            const imgAspect = img.naturalWidth / img.naturalHeight;
+            const containerAspect = containerWidth / containerHeight;
+            
+            let drawWidth, drawHeight, offsetX, offsetY;
+            
+            if (imgAspect > containerAspect) {
+                // Image is wider than container
+                drawHeight = containerHeight;
+                drawWidth = drawHeight * imgAspect;
+                offsetX = (containerWidth - drawWidth) / 2;
+                offsetY = 0;
+            } else {
+                // Image is taller than container
+                drawWidth = containerWidth;
+                drawHeight = drawWidth / imgAspect;
+                offsetX = 0;
+                offsetY = (containerHeight - drawHeight) / 2;
+            }
+            
+            // Draw the cropped image
+            ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+            
+            // Store original for restoration
+            replacements.push({ canvas, img, container });
+            
+            // Replace image with canvas
+            container.replaceChild(canvas, img);
+        }
+        
+        // Wait a moment for DOM to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Generate PNG with html2canvas
+        const finalCanvas = await html2canvas(gallery, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            logging: false,
+            useCORS: true,
+            allowTaint: false,
+            imageTimeout: 0
+        });
+        
+        // Restore original images
+        replacements.forEach(({ canvas, img, container }) => {
+            container.replaceChild(img, canvas);
+        });
+        
+        // Download the PNG
+        finalCanvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().slice(0, 10);
+            link.download = `${currentLot.name}-${timestamp}.png`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            button.disabled = false;
+            button.textContent = '📸 Generate PNG';
+        });
+    } catch (error) {
+        console.error('Error generating PNG:', error);
+        alert('Error generating PNG: ' + error.message);
+        
+        // Restore images in case of error
+        replacements.forEach(({ canvas, img, container }) => {
+            if (canvas.parentElement === container) {
+                container.replaceChild(img, canvas);
+            }
+        });
+        
+        button.disabled = false;
+        button.textContent = '📸 Generate PNG';
+    }
+}
+
+// Modal functions
+function openAddModal(prefilledUsername = '') {
+    document.getElementById('addModal').style.display = 'block';
+    updateUsernameDropdown();
+    
+    // Prefill username if provided
+    if (prefilledUsername) {
+        document.getElementById('newUsername').value = prefilledUsername;
+    }
+    
+    setTimeout(() => {
+        document.getElementById('pasteArea').focus();
+    }, 100);
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').style.display = 'none';
+    document.getElementById('addItemForm').reset();
+    document.getElementById('pasteArea').innerHTML = '<div class="paste-instructions">Click here and press Ctrl+V to paste image</div>';
+    pastedImage = null;
+}
+
+// Update username dropdown - fetch from database
+async function updateUsernameDropdown() {
+    const datalist = document.getElementById('usernames');
+    datalist.innerHTML = '';
+    
+    try {
+        // Fetch all users from Supabase
+        const { data: users, error } = await supabaseClient
+            .from('users')
+            .select('username')
+            .order('username');
+        
+        if (error) throw error;
+        
+        // Add users to dropdown
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.username;
+            datalist.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading users:', error);
+        // Fallback to existing items' usernames if database fetch fails
+        const allUsers = new Set();
+        lotItems.forEach(item => allUsers.add(item.username));
+        
+        allUsers.forEach(username => {
+            const option = document.createElement('option');
+            option.value = username;
+            datalist.appendChild(option);
+        });
+    }
+}
+
+// Setup paste area
+function setupPasteArea() {
+    const pasteArea = document.getElementById('pasteArea');
+    const modal = document.getElementById('addModal');
+    
+    pasteArea.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const items = e.clipboardData.items;
+        
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    pastedImage = event.target.result;
+                    pasteArea.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+                };
+                
+                reader.readAsDataURL(blob);
+                break;
+            }
+        }
+    });
+    
+    pasteArea.addEventListener('click', function() {
+        this.focus();
+    });
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeAddModal();
+        }
+    });
+
+    // Global paste listener - auto-open modal when pasting image anywhere
+    document.addEventListener('paste', function(e) {
+        // Check if user has add permission
+        if (!hasPermission('add')) {
+            return;
+        }
+
+        // Check if paste contains an image
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    pastedImage = event.target.result;
+                    
+                    // If modal is already open, just update the paste area
+                    if (modal.style.display === 'block') {
+                        const pasteAreaElement = document.getElementById('pasteArea');
+                        pasteAreaElement.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+                    } else {
+                        // Open the modal with the image already pasted
+                        openAddModal();
+                        
+                        // Wait a bit for modal to fully render, then show the image
+                        setTimeout(() => {
+                            const pasteAreaElement = document.getElementById('pasteArea');
+                            pasteAreaElement.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+                        }, 100);
+                    }
+                };
+                
+                reader.readAsDataURL(blob);
+                break;
+            }
+        }
+    });
+    
+    // Global Enter key listener - submit add item form when modal is open
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && modal.style.display === 'block') {
+            // Don't interfere with textarea or contenteditable
+            if (e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+                return;
+            }
+            e.preventDefault();
+            addNewItem();
+        }
+    });
+}
+
+// Upload to Cloudinary
+async function uploadToCloudinary(base64Image) {
+    try {
+        const response = await fetch(base64Image);
+        const blob = await response.blob();
+        
+        const formData = new FormData();
+        formData.append('file', blob);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        
+        const uploadResponse = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+            {
+                method: 'POST',
+                body: formData
+            }
+        );
+        
+        if (!uploadResponse.ok) {
+            throw new Error('Upload failed');
+        }
+        
+        const data = await uploadResponse.json();
+        return data.secure_url;
+    } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        throw error;
+    }
+}
+
+// Add new item
+async function addNewItem() {
+    const username = document.getElementById('newUsername').value.trim();
+    const price = parseFloat(document.getElementById('newPrice').value);
+    const addButton = document.querySelector('.btn-add');
+    
+    if (!username) {
+        alert('Please enter a username!');
+        return;
+    }
+    
+    if (!price || price <= 0) {
+        alert('Please enter a valid price!');
+        return;
+    }
+    
+    if (!pastedImage) {
+        alert('Please paste an image!');
+        return;
+    }
+    
+    // Store the image data before closing modal
+    const imageToUpload = pastedImage;
+    
+    // Close modal immediately
+    closeAddModal();
+    
+    // Upload and save in background
+    (async () => {
+        try {
+            // Check if user exists in database
+            const { data: existingUser, error: userCheckError } = await supabaseClient
+                .from('users')
+                .select('id, username')
+                .eq('username', username);
+            
+            if (userCheckError) throw userCheckError;
+            
+            // If user doesn't exist, create with empty password and empty name
+            if (!existingUser || existingUser.length === 0) {
+                const { error: createUserError } = await supabaseClient
+                    .from('users')
+                    .insert([{
+                        username: username,
+                        password: '', // Empty password - needs to be set later
+                        name: '', // Keep name empty - to be set later
+                        access_level: 'viewer' // Default access level
+                    }]);
+                
+                if (createUserError) throw createUserError;
+            }
+            
+            // Upload image to Cloudinary
+            const cloudinaryUrl = await uploadToCloudinary(imageToUpload);
+            
+            // Insert into Supabase
+            const { error } = await supabaseClient
+                .from('items')
+                .insert([{
+                    lot_id: currentLot.id,
+                    username: username,
+                    picture_url: cloudinaryUrl,
+                    price: price
+                }]);
+
+            if (error) throw error;
+
+            // Reload items to show the new item
+            await loadLotItems();
+            
+        } catch (error) {
+            console.error('Error adding item:', error);
+            alert('Failed to add item: ' + error.message);
+        }
+    })();
+}
+
+// Toggle item menu dropdown
+function toggleItemMenu(event, itemId) {
+    event.stopPropagation();
+    const menu = document.getElementById(`item-menu-${itemId}`);
+    const allMenus = document.querySelectorAll('.item-menu-dropdown');
+    
+    // Close all other menus
+    allMenus.forEach(m => {
+        if (m.id !== `item-menu-${itemId}`) {
+            m.classList.remove('show');
+        }
+    });
+    
+    // Toggle current menu
+    menu.classList.toggle('show');
+}
+
+// Close item menus when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.item-menu')) {
+        const allMenus = document.querySelectorAll('.item-menu-dropdown');
+        allMenus.forEach(m => m.classList.remove('show'));
+    }
+});
+
+// Open pass item modal
+let currentPassItemId = null;
+
+async function openPassModal(itemId, event) {
+    event.stopPropagation();
+    
+    // Close the menu
+    const allMenus = document.querySelectorAll('.item-menu-dropdown');
+    allMenus.forEach(m => m.classList.remove('show'));
+    
+    currentPassItemId = itemId;
+    
+    // Load users into datalist
+    const datalist = document.getElementById('passUsernames');
+    datalist.innerHTML = '';
+    
+    try {
+        const { data: users, error } = await supabaseClient
+            .from('users')
+            .select('username')
+            .order('username');
+        
+        if (error) throw error;
+        
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.username;
+            datalist.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+    
+    document.getElementById('passModal').style.display = 'block';
+    document.getElementById('passUsername').value = '';
+}
+
+function closePassModal() {
+    document.getElementById('passModal').style.display = 'none';
+    currentPassItemId = null;
+}
+
+// Pass item to another user
+async function passItem() {
+    const newUsername = document.getElementById('passUsername').value.trim();
+    
+    if (!newUsername) {
+        alert('Please enter a username!');
+        return;
+    }
+    
+    // Check if user exists
+    try {
+        const { data: existingUsers, error: checkError } = await supabaseClient
+            .from('users')
+            .select('username')
+            .eq('username', newUsername);
+        
+        if (checkError) throw checkError;
+        
+        const isNewUser = !existingUsers || existingUsers.length === 0;
+        
+        if (isNewUser) {
+            const confirmCreate = confirm(`User "${newUsername}" doesn't exist. Do you want to create this user and pass the item to them?`);
+            if (!confirmCreate) return;
+            
+            // Create new user
+            const { error: createError } = await supabaseClient
+                .from('users')
+                .insert([{
+                    username: newUsername,
+                    password: '',
+                    name: '',
+                    access_level: 'viewer'
+                }]);
+            
+            if (createError) throw createError;
+        }
+        
+        // Pass the item
+        const { error } = await supabaseClient
+            .from('items')
+            .update({ username: newUsername })
+            .eq('id', currentPassItemId);
+        
+        if (error) throw error;
+        
+        closePassModal();
+        await loadLotItems();
+    } catch (error) {
+        console.error('Error passing item:', error);
+        alert('Failed to pass item. Please try again.');
+    }
+}
+
+// Toggle cancel/restore item
+async function toggleCancelItem(itemId, event) {
+    event.stopPropagation();
+    
+    // Close the menu
+    const allMenus = document.querySelectorAll('.item-menu-dropdown');
+    allMenus.forEach(m => m.classList.remove('show'));
+    
+    try {
+        // First, get the current item state from the database
+        const { data: currentItem, error: fetchError } = await supabaseClient
+            .from('items')
+            .select('cancelled')
+            .eq('id', itemId)
+            .single();
+        
+        if (fetchError) throw fetchError;
+        
+        // Toggle the cancelled state
+        const newCancelledState = !currentItem.cancelled;
+        
+        // Update in database
+        const { error } = await supabaseClient
+            .from('items')
+            .update({ cancelled: newCancelledState })
+            .eq('id', itemId);
+        
+        if (error) throw error;
+        
+        // Reload items to reflect the change
+        await loadLotItems();
+    } catch (error) {
+        console.error('Error toggling cancel state:', error);
+        alert('Failed to update item. Please try again.');
+    }
+}
+
+// Delete item
+async function deleteItem(itemId, event) {
+    event.stopPropagation();
+    
+    // Close the menu
+    const allMenus = document.querySelectorAll('.item-menu-dropdown');
+    allMenus.forEach(m => m.classList.remove('show'));
+    
+    if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const { error } = await supabaseClient
+            .from('items')
+            .delete()
+            .eq('id', itemId);
+        
+        if (error) throw error;
+        
+        await loadLotItems();
+    } catch (error) {
+        console.error('Error deleting item:', error);
+        alert('Failed to delete item. Please try again.');
+    }
+}
+
+// Logout function
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        clearSession();
+        window.location.href = 'index.html';
+    }
+}

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Items - Collection Manager</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/person_view.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
+            </div>
+            <div class="header-actions">
+                <span class="user-name" id="userName" onclick="window.location.href='person_view.html'"></span>
+                <button onclick="logout()" class="header-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="breadcrumb-container">
+        <div class="breadcrumb-content">
+            <nav class="breadcrumb">
+                <a href="dashboard.html">Dashboard</a>
+                <span class="breadcrumb-separator">/</span>
+                <span class="breadcrumb-current" id="personTitle">My Items</span>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="user-info-card">
+            <h2 id="displayUsername">Username</h2>
+            <div id="totalSummary" class="summary"></div>
+        </div>
+
+        <div class="filters-controls">
+            <div class="filters">
+                <label>Filter by Status:</label>
+                <select id="statusFilter" onchange="applyFilters()">
+                    <option value="all">All Status</option>
+                    <option value="Yet to arrive">Yet to arrive</option>
+                    <option value="Arrived">Arrived</option>
+                    <option value="Delivered">Delivered</option>
+                </select>
+
+                <label>Filter by Payment:</label>
+                <select id="paymentFilter" onchange="applyFilters()">
+                    <option value="all">All Payments</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Unpaid">Unpaid</option>
+                </select>
+            </div>
+
+            <button class="generate-png-btn" onclick="generatePersonViewPNG()">📸 Generate PNG</button>
+        </div>
+
+        <div id="lotsContainer" class="loading">
+            Loading your items...
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/person_view.js"></script>
+</body>
+</html>
+

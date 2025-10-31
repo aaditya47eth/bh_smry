@@ -1,0 +1,65 @@
+===============================================
+  BH SUMMARY MAKER - QUICK DEPLOYMENT GUIDE
+===============================================
+
+✅ STEP 1: DEPLOY TO VERCEL (5 minutes)
+---------------------------------------
+1. Go to: https://vercel.com/signup
+2. Sign up (use GitHub or Email)
+3. Click "Add New..." → "Project"
+4. Upload your "bh_smry_maker" folder (drag & drop)
+5. Click "Deploy"
+6. Wait 60 seconds
+7. Copy your URL (e.g., bh-summary-maker.vercel.app)
+
+✅ STEP 2: CONNECT GODADDY DOMAIN (10 minutes)
+----------------------------------------------
+IN VERCEL:
+1. Go to Settings → Domains
+2. Add your GoDaddy domain (e.g., yourdomain.com)
+3. Keep the tab open (you'll need the DNS info)
+
+IN GODADDY:
+1. Login to: https://dcc.godaddy.com/domains
+2. Click your domain → DNS
+3. Add these records:
+
+   Record 1:
+   Type: A
+   Name: @
+   Value: 76.76.21.21
+   
+   Record 2:
+   Type: CNAME
+   Name: www
+   Value: cname.vercel-dns.com
+
+4. Save and wait 10 minutes
+
+✅ STEP 3: UPDATE SUPABASE (2 minutes)
+--------------------------------------
+1. Go to: https://supabase.com/dashboard
+2. Click your project
+3. Go to: Authentication → URL Configuration
+4. Set Site URL to: https://yourdomain.com
+5. Add Redirect URLs:
+   - https://yourdomain.com/*
+   - https://www.yourdomain.com/*
+   - https://your-vercel-url.vercel.app/*
+6. Save
+
+✅ STEP 4: TEST YOUR SITE
+-------------------------
+1. Go to: https://yourdomain.com
+2. Try logging in
+3. Test adding items
+4. Check on mobile
+
+===============================================
+            🎉 YOU'RE LIVE! 🎉
+===============================================
+
+Total Cost: $0/month (just domain cost ~$15/year)
+
+Need help? Check DEPLOYMENT_GUIDE.md for details!
+

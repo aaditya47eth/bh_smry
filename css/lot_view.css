@@ -1,0 +1,429 @@
+/* ============================================
+   LOT VIEW PAGE STYLES - Blue & Black Theme
+   ============================================ */
+
+:root {
+    --image-size: 100px;
+    --price-size: 1.0em;
+    --label-size: 0.9em;
+    --total-size: 0.9em;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.lot-title {
+    font-size: 2em;
+    color: var(--secondary-black);
+}
+
+.back-btn {
+    background: var(--primary-blue);
+    color: var(--white);
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.3s;
+}
+
+.back-btn:hover {
+    background: var(--primary-blue-dark);
+}
+
+.controls {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: var(--very-light-gray);
+    border-radius: 10px;
+    border: 2px solid var(--light-gray);
+}
+
+.controls label {
+    font-size: 1.1em;
+    margin-right: 15px;
+    font-weight: bold;
+    color: var(--secondary-black);
+}
+
+.controls button {
+    padding: 10px 20px;
+    margin: 0 5px;
+    font-size: 1em;
+    cursor: pointer;
+    border: 2px solid var(--primary-blue);
+    background: var(--white);
+    color: var(--primary-blue);
+    border-radius: 8px;
+    transition: all 0.3s;
+    font-weight: 600;
+}
+
+.controls button:hover {
+    background: var(--primary-blue);
+    color: var(--white);
+}
+
+.controls .generate-btn {
+    background: var(--success);
+    color: var(--white);
+    border-color: var(--success);
+    margin-left: 20px;
+}
+
+.controls .generate-btn:hover {
+    background: #059669;
+}
+
+.controls .save-json-btn {
+    background: var(--primary-blue);
+    color: var(--white);
+    border-color: var(--primary-blue);
+    margin-left: 10px;
+}
+
+.controls .save-json-btn:hover {
+    background: var(--primary-blue-dark);
+}
+
+.controls .add-new-btn {
+    background: var(--warning);
+    color: var(--white);
+    border-color: var(--warning);
+    margin-left: 10px;
+}
+
+.controls .add-new-btn:hover {
+    background: #d97706;
+}
+
+.user-section {
+    display: inline-block;
+    vertical-align: top;
+    margin-right: 30px;
+    margin-bottom: 20px;
+}
+
+.items-grid {
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+}
+
+.item-card {
+    display: inline-block;
+    text-align: center;
+    vertical-align: top;
+    padding: 0;
+    margin: 0;
+}
+
+.price {
+    font-size: var(--price-size);
+    font-weight: normal;
+    color: var(--secondary-black);
+    margin: 0;
+    padding: 5px;
+    line-height: 1.2;
+    border: 2px solid transparent;
+    border-radius: 5px;
+    cursor: text;
+    transition: border-color 0.2s;
+}
+
+.price:hover {
+    border-color: var(--light-gray);
+}
+
+.price:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    background: var(--very-light-gray);
+}
+
+.item-image-container {
+    width: var(--image-size);
+    height: var(--image-size);
+    display: block;
+    overflow: visible;
+    background: var(--very-light-gray);
+    border: 2px solid var(--light-gray);
+    margin: 0;
+    padding: 0;
+    border-radius: 8px;
+    position: relative;
+}
+
+.item-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Three-dot menu on items */
+.item-menu {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.item-image-container:hover .item-menu {
+    opacity: 1;
+}
+
+.item-menu-btn {
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 1.4em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    line-height: 1;
+    padding: 0;
+}
+
+.item-menu-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: scale(1.1);
+}
+
+.item-menu-dropdown {
+    position: absolute;
+    top: 35px;
+    right: 0;
+    background: var(--white);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    min-width: 120px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.3s;
+    z-index: 100;
+}
+
+.item-menu-dropdown.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.item-menu-dropdown button {
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    background: transparent;
+    color: var(--secondary-black);
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: background 0.2s;
+    display: block;
+}
+
+.item-menu-dropdown button:hover {
+    background: var(--very-light-gray);
+}
+
+.item-menu-dropdown button:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.item-menu-dropdown button:last-child {
+    border-radius: 0 0 8px 8px;
+}
+
+.item-menu-dropdown button.delete-menu-item {
+    color: var(--danger);
+}
+
+.item-menu-dropdown button.delete-menu-item:hover {
+    background: #fee2e2;
+}
+
+/* Cancel overlay */
+.cancel-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(220, 38, 38, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3em;
+    z-index: 5;
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+.item-label {
+    font-size: var(--label-size);
+    color: var(--secondary-black);
+    font-weight: normal;
+    margin: 0;
+    padding: 5px 0;
+}
+
+.username-link {
+    color: inherit;
+    text-decoration: none;
+    font-weight: inherit;
+}
+
+.username-link:hover {
+    text-decoration: underline;
+}
+
+.total-hover {
+    cursor: pointer;
+    position: relative;
+    padding: 2px 5px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.total-hover:hover {
+    background: #dc3545;
+    color: var(--white);
+}
+
+.total-hover:hover::after {
+    content: attr(data-hover-text);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 5px;
+    white-space: nowrap;
+    background: var(--primary-blue);
+    color: var(--white);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.image-paste-area {
+    width: 100%;
+    height: 200px;
+    border: 3px dashed var(--light-gray);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--very-light-gray);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.image-paste-area:hover {
+    border-color: var(--primary-blue);
+    background: var(--very-light-gray);
+}
+
+.image-paste-area img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.paste-instructions {
+    text-align: center;
+    color: var(--medium-gray);
+}
+
+/* Remove spinner arrows from number input */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input.no-spinner[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Modal button styling */
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+    margin-top: 20px;
+}
+
+.modal-buttons .btn-add {
+    background: var(--success);
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.modal-buttons .btn-add:hover {
+    background: #059669;
+    transform: translateY(-2px);
+}
+
+.modal-buttons .btn-add:disabled {
+    background: var(--medium-gray);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.modal-buttons .btn-cancel {
+    background: var(--danger);
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.modal-buttons .btn-cancel:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .item-image-container {
+        width: 140px;
+        height: 140px;
+    }
+
+    .price {
+        font-size: 1.4em;
+    }
+
+    .item-label {
+        font-size: 1em;
+    }
+}
+

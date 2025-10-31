@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Collection Manager</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
+            </div>
+            <div class="header-actions">
+                <span class="user-name" id="userName" onclick="window.location.href='person_view.html'"></span>
+                <button onclick="logout()" class="header-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="breadcrumb-container">
+        <div class="breadcrumb-content">
+            <nav class="breadcrumb">
+                <span class="breadcrumb-current">Dashboard</span>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h2 class="dashboard-title">All Lots</h2>
+            <div class="header-actions">
+                <button class="create-lot-btn" id="adminPanelBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">
+                    ⚙️ Admin Panel
+                </button>
+                <button class="create-lot-btn" id="createLotBtn" onclick="openCreateModal()" style="display:none;">
+                    ➕ Create New Lot
+                </button>
+            </div>
+        </div>
+
+        <div id="lotsContainer" class="loading">
+            Loading lots...
+        </div>
+    </div>
+
+    <!-- Create Lot Modal -->
+    <div id="createLotModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Create New Lot</div>
+            <form id="createLotForm">
+                <div class="form-group">
+                    <label>Lot Name:</label>
+                    <input type="text" id="lotName" placeholder="e.g., lot_1, lot_2" required>
+                </div>
+                <div class="form-group">
+                    <label>Description (optional):</label>
+                    <textarea id="lotDescription" rows="3" placeholder="Enter description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Status:</label>
+                    <select id="lotStatus" required>
+                        <option value="Going on">Going on</option>
+                        <option value="Yet to arrive">Yet to arrive</option>
+                        <option value="Arrived">Arrived</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeCreateModal()">Cancel</button>
+                    <button type="submit" class="btn-create">Create Lot</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rename Lot Modal -->
+    <div id="renameLotModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Rename Lot</div>
+            <form id="renameLotForm">
+                <input type="hidden" id="renameLotId">
+                <div class="form-group">
+                    <label>New Lot Name:</label>
+                    <input type="text" id="renameLotInput" placeholder="Enter new name" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeRenameLotModal()">Cancel</button>
+                    <button type="submit" class="btn-create">Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

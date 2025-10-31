@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lot View - Collection Manager</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/lot_view.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
+            </div>
+            <div class="header-actions">
+                <span class="user-name" id="userName" onclick="window.location.href='person_view.html'"></span>
+                <button onclick="logout()" class="header-btn">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="breadcrumb-container">
+        <div class="breadcrumb-content">
+            <nav class="breadcrumb">
+                <a href="dashboard.html">Dashboard</a>
+                <span class="breadcrumb-separator">/</span>
+                <span class="breadcrumb-current" id="lotTitle">Lot View</span>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="controls">
+            <label>Size:</label>
+            <button onclick="decreaseSize()">- Decrease</button>
+            <button onclick="resetSize()">Reset</button>
+            <button onclick="increaseSize()">+ Increase</button>
+            
+            <label style="margin-left: 20px;">
+                <input type="checkbox" id="showTotalsCheckbox" checked onclick="toggleShowTotals()">
+                Show Totals
+            </label>
+            
+            <button class="generate-btn" onclick="generatePNG()">📸 Generate PNG</button>
+            <button class="add-new-btn" id="addNewBtn" onclick="openAddModal()" style="display:none;">➕ Add New</button>
+        </div>
+
+        <div id="gallery" class="loading">
+            Loading lot items...
+        </div>
+    </div>
+
+    <!-- Add New Item Modal -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add New Item to Lot</div>
+            
+            <form id="addItemForm" onsubmit="event.preventDefault(); addNewItem();">
+                <div class="form-group">
+                    <label>Username:</label>
+                    <input type="text" id="newUsername" list="usernames" placeholder="Enter or select username" required>
+                    <datalist id="usernames"></datalist>
+                </div>
+                
+                <div class="form-group">
+                    <label>Price:</label>
+                    <input type="number" id="newPrice" placeholder="Enter price" class="no-spinner" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Image (Click and Paste from Clipboard - Ctrl+V):</label>
+                    <div id="pasteArea" class="image-paste-area" tabindex="0">
+                        <div class="paste-instructions">
+                            Click here and press Ctrl+V to paste image
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+                    <button type="submit" class="btn-add">Add Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pass Item Modal -->
+    <div id="passModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Pass Item to User</div>
+            
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="passUsername" list="passUsernames" placeholder="Enter or select username" required>
+                <datalist id="passUsernames"></datalist>
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    Note: If you enter a new username, a new user will be created.
+                </small>
+            </div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="btn-cancel" onclick="closePassModal()">Cancel</button>
+                <button type="button" class="btn-add" onclick="passItem()">Pass Item</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/lot_view.js"></script>
+</body>
+</html>
+

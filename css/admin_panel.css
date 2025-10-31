@@ -1,0 +1,279 @@
+/* ============================================
+   ADMIN PANEL PAGE STYLES - Blue & Black Theme
+   ============================================ */
+
+:root {
+    --primary-color: #092241;
+    --primary-dark: #092241;
+    --text-primary: #000000;
+    --border-color: #e0e0e0;
+    --card-bg: #ffffff;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.page-header h1 {
+    margin: 0;
+    color: var(--primary-color);
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.user-info {
+    background: var(--card-bg);
+    padding: 12px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.controls {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+/* Users Table Styles */
+.users-container {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.users-container h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--primary-color);
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.users-table thead {
+    background: var(--primary-color);
+    color: white;
+}
+
+.users-table th {
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-dark);
+}
+
+.users-table tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.users-table tbody tr:hover {
+    background: #f5f5f5;
+}
+
+.users-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.users-table td {
+    padding: 15px;
+    color: var(--text-primary);
+}
+
+.access-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.access-badge.admin {
+    background: #6366f1;
+    color: white;
+}
+
+.access-badge.manager {
+    background: #f59e0b;
+    color: white;
+}
+
+.access-badge.viewer {
+    background: #10b981;
+    color: white;
+}
+
+.username-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.username-link:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+.password-warning {
+    display: inline-block;
+    padding: 4px 10px;
+    margin-left: 8px;
+    background: #f59e0b;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.action-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.3s;
+}
+
+.action-btn.delete {
+    background: #ef4444;
+    color: white;
+}
+
+.action-btn.delete:hover {
+    background: #dc2626;
+}
+
+.action-btn.edit {
+    background: var(--primary-color);
+    color: white;
+    margin-right: 5px;
+}
+
+.action-btn.edit:hover {
+    background: var(--primary-dark);
+}
+
+/* Modal Specific Styles */
+.modal-body form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.form-group input,
+.form-group select {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1em;
+    background: white;
+    color: var(--text-primary);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-group small {
+    color: #666666;
+    font-size: 0.85em;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-group input::placeholder {
+    color: #666666;
+    font-style: italic;
+}
+
+.password-input-group {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.password-input-group input {
+    flex: 1;
+}
+
+.toggle-password {
+    padding: 10px 15px;
+    border: 1px solid var(--border-color);
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1.2em;
+    transition: all 0.3s;
+}
+
+.toggle-password:hover {
+    background: #f5f5f5;
+    border-color: var(--primary-color);
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .header-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .users-table {
+        font-size: 0.9em;
+    }
+
+    .users-table th,
+    .users-table td {
+        padding: 10px;
+    }
+
+    .action-btn {
+        padding: 5px 10px;
+        font-size: 0.85em;
+    }
+}
+
