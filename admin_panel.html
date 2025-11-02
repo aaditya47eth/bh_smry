@@ -15,7 +15,7 @@
                 <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
             </div>
             <div class="header-actions">
-                <span class="user-name" id="userName" onclick="window.location.href='person_view.html'"></span>
+                <span class="user-name" id="userName"></span>
                 <button onclick="logout()" class="header-btn">Logout</button>
             </div>
         </div>
@@ -43,6 +43,9 @@
 
         <div class="users-container">
             <h2>All Users</h2>
+            <div class="search-container" style="margin-bottom: 20px;">
+                <input type="text" id="searchInput" placeholder="Search by username or number..." style="padding: 10px; width: 300px; border-radius: 5px; border: 1px solid #ddd;" onkeyup="searchUsers()">
+            </div>
             <table class="users-table">
                 <thead>
                     <tr>
@@ -77,7 +80,7 @@
                         <label for="newPassword">Password:</label>
                         <div class="password-input-group">
                             <input type="password" id="newPassword" required placeholder="Enter password">
-                            <button type="button" class="toggle-password" onclick="togglePassword('newPassword')">👁️</button>
+                            <button type="button" class="toggle-password" onclick="togglePassword('newPassword')">🫣</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -117,13 +120,13 @@
                         <label for="editPassword">Password:</label>
                         <div class="password-input-group">
                             <input type="password" id="editPassword" placeholder="Leave blank to keep current password">
-                            <button type="button" class="toggle-password" onclick="togglePassword('editPassword')">👁️</button>
+                            <button type="button" class="toggle-password" onclick="togglePassword('editPassword')">🫣</button>
                         </div>
                         <small>Leave blank if you don't want to change the password</small>
                     </div>
                     <div class="form-group">
-                        <label for="editName">Number:</label>
-                        <input type="text" id="editName" required placeholder="Enter phone number">
+                        <label for="editName">Number (optional):</label>
+                        <input type="text" id="editName" placeholder="Enter phone number">
                     </div>
                     <div class="form-group">
                         <label for="editAccessLevel">Access Level:</label>

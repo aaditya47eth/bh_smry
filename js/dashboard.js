@@ -12,10 +12,19 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     
     currentUser = getCurrentUser();
-    document.getElementById('userName').textContent = currentUser.username;
+    const userNameElement = document.getElementById('userName');
+    userNameElement.textContent = currentUser.username;
+    
+    // Make username clickable only for non-guest users
+    if (currentUser.id !== 'guest') {
+        userNameElement.style.cursor = 'pointer';
+        userNameElement.onclick = () => {
+            window.location.href = 'person_view.html';
+        };
+    }
     
     // Show admin panel button for admin only
-    if (currentUser.access_level === 'admin') {
+    if (currentUser.access_level.toLowerCase() === 'admin') {
         document.getElementById('adminPanelBtn').style.display = 'flex';
     }
     
@@ -31,12 +40,11 @@ async function loadLots() {
     try {
         let query = supabaseClient
             .from('lots')
-            .select('*')
-            .order('created_at', { ascending: true }); // Ascending order (oldest first)
+            .select('*');
         
         // If viewer, only show lots that are NOT "Going on"
         const user = getCurrentUser();
-        if (user && user.access_level === 'viewer') {
+        if (user && user.access_level.toLowerCase() === 'viewer') {
             query = query.neq('status', 'Going on');
         }
 
@@ -44,7 +52,14 @@ async function loadLots() {
 
         if (error) throw error;
 
-        displayLots(lots);
+        // Sort lots numerically by extracting number from lot_name
+        const sortedLots = lots.sort((a, b) => {
+            const numA = parseInt(a.lot_name.match(/(\d+)$/)?.[1] || '0');
+            const numB = parseInt(b.lot_name.match(/(\d+)$/)?.[1] || '0');
+            return numA - numB;
+        });
+
+        displayLots(sortedLots);
     } catch (error) {
         console.error('Error loading lots:', error);
         document.getElementById('lotsContainer').innerHTML = 
@@ -143,8 +158,47 @@ document.addEventListener('click', function(e) {
     }
 });
 
-function openCreateModal() {
+async function openCreateModal() {
     document.getElementById('createLotModal').style.display = 'block';
+    
+    // Auto-generate next lot name based on highest lot number (not most recent date)
+    try {
+        const { data: lots, error } = await supabaseClient
+            .from('lots')
+            .select('lot_name');
+        
+        if (!error && lots && lots.length > 0) {
+            // Extract all numbers from lot names
+            let maxNumber = 0;
+            let baseName = 'Lot ';
+            
+            lots.forEach(lot => {
+                const match = lot.lot_name.match(/(\d+)$/);
+                if (match) {
+                    const num = parseInt(match[1]);
+                    if (num > maxNumber) {
+                        maxNumber = num;
+                        baseName = lot.lot_name.replace(/\d+$/, '');
+                    }
+                }
+            });
+            
+            if (maxNumber > 0) {
+                const nextNumber = maxNumber + 1;
+                document.getElementById('lotName').value = baseName + nextNumber;
+                console.log(`Highest lot number found: ${maxNumber}, suggesting: ${baseName}${nextNumber}`);
+            } else {
+                // No numbers found in any lot names
+                document.getElementById('lotName').value = 'Lot 1';
+            }
+        } else {
+            // First lot
+            document.getElementById('lotName').value = 'Lot 1';
+        }
+    } catch (error) {
+        console.error('Error generating lot name:', error);
+        document.getElementById('lotName').value = 'Lot 1';
+    }
 }
 
 function closeCreateModal() {

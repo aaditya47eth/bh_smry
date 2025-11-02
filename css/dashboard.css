@@ -72,8 +72,9 @@
 
 .dashboard-title {
     font-size: 1.6em;
-    color: var(--secondary-black);
+    color: var(--white);
     font-weight: 600;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .header-actions {
@@ -110,9 +111,12 @@
 }
 
 .lot-card {
-    background: var(--secondary-black);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 15px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     transition: transform 0.3s, box-shadow 0.3s;
     position: relative;
     display: flex;
@@ -162,7 +166,7 @@
 }
 
 .lot-date {
-    color: var(--medium-gray);
+    color: #eee;
     font-size: 0.75em;
     font-weight: 400;
 }

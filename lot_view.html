@@ -14,7 +14,7 @@
                 <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
             </div>
             <div class="header-actions">
-                <span class="user-name" id="userName" onclick="window.location.href='person_view.html'"></span>
+                <span class="user-name" id="userName"></span>
                 <button onclick="logout()" class="header-btn">Logout</button>
             </div>
         </div>
@@ -32,6 +32,11 @@
 
     <div class="container">
         <div class="controls">
+            <label>Switch Lot:</label>
+            <select id="lotDropdown" onchange="switchLot()" style="padding: 8px 12px; border-radius: 5px; border: 1px solid #ddd; margin-right: 20px;">
+                <option value="">Loading...</option>
+            </select>
+            
             <label>Size:</label>
             <button onclick="decreaseSize()">- Decrease</button>
             <button onclick="resetSize()">Reset</button>
