@@ -36,17 +36,19 @@ function hasPermission(permission) {
     const user = getCurrentUser();
     if (!user) return false;
     
+    const accessLevel = user.access_level.toLowerCase(); // Convert to lowercase for comparison
+    
     switch (permission) {
         case 'view':
-            return ['admin', 'manager', 'viewer'].includes(user.access_level);
+            return ['admin', 'manager', 'viewer'].includes(accessLevel);
         case 'add':
-            return ['admin', 'manager'].includes(user.access_level);
+            return ['admin', 'manager'].includes(accessLevel);
         case 'edit':
-            return ['admin', 'manager'].includes(user.access_level);
+            return ['admin', 'manager'].includes(accessLevel);
         case 'delete':
-            return ['admin', 'manager'].includes(user.access_level);
+            return ['admin', 'manager'].includes(accessLevel);
         case 'manage_users':
-            return ['admin', 'manager'].includes(user.access_level);
+            return ['admin', 'manager'].includes(accessLevel);
         default:
             return false;
     }

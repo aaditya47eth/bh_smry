@@ -2,6 +2,87 @@
    LOT VIEW PAGE STYLES - Blue & Black Theme
    ============================================ */
 
+/* Override glassmorphism for lot view - keep original solid design */
+body {
+    background: var(--very-light-gray) !important;
+}
+
+body::before {
+    display: none !important;
+}
+
+.header {
+    background: var(--secondary-black) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.container {
+    background: var(--white) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.breadcrumb-container {
+    background: var(--white) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: 2px solid var(--light-gray) !important;
+}
+
+.breadcrumb a {
+    color: black !important;
+    text-shadow: none !important;
+}
+
+.breadcrumb-separator {
+    color: var(--medium-gray) !important;
+}
+
+.breadcrumb-current {
+    color: var(--secondary-black) !important;
+    text-shadow: none !important;
+}
+
+.modal-content {
+    background-color: var(--white) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: none !important;
+}
+
+.modal-header {
+    color: var(--secondary-black) !important;
+    text-shadow: none !important;
+}
+
+.form-group label {
+    color: var(--dark-gray) !important;
+    text-shadow: none !important;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    background: var(--white) !important;
+    border: 2px solid var(--light-gray) !important;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: var(--primary-blue) !important;
+    background: var(--white) !important;
+    box-shadow: none !important;
+}
+
+.loading {
+    color: var(--medium-gray) !important;
+    text-shadow: none !important;
+}
+
 :root {
     --image-size: 100px;
     --price-size: 1.0em;

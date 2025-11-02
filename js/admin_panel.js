@@ -2,6 +2,8 @@
 // ADMIN PANEL PAGE SCRIPT
 // ============================================
 
+let allUsersData = []; // Store all users for search functionality
+
 // Check authentication and permissions on page load
 document.addEventListener('DOMContentLoaded', async () => {
     const currentUser = getCurrentUser();
@@ -18,9 +20,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Display current user info
-    document.getElementById('currentUserName').textContent = currentUser.name;
+    document.getElementById('currentUserName').textContent = currentUser.username;
     document.getElementById('currentUserRole').textContent = currentUser.access_level;
-    document.getElementById('userName').textContent = currentUser.username;
+    
+    const userNameElement = document.getElementById('userName');
+    userNameElement.textContent = currentUser.username;
+    
+    // Make username clickable only for non-guest users
+    if (currentUser.id !== 'guest') {
+        userNameElement.style.cursor = 'pointer';
+        userNameElement.onclick = () => {
+            window.location.href = 'person_view.html';
+        };
+    }
 
     // Load all users
     loadUsers();
@@ -46,11 +58,32 @@ async function loadUsers() {
             return a.username.localeCompare(b.username);
         });
 
+        allUsersData = sortedData; // Store for search functionality
         displayUsers(sortedData);
     } catch (error) {
         console.error('Error loading users:', error);
         alert('Failed to load users: ' + error.message);
     }
+}
+
+// Search users by username or number
+function searchUsers() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        // If search is empty, show all users
+        displayUsers(allUsersData);
+        return;
+    }
+    
+    // Filter users by username or number
+    const filteredUsers = allUsersData.filter(user => {
+        const username = (user.username || '').toLowerCase();
+        const number = (user.number || '').toLowerCase();
+        return username.includes(searchTerm) || number.includes(searchTerm);
+    });
+    
+    displayUsers(filteredUsers);
 }
 
 // Display users in table
@@ -84,7 +117,7 @@ function displayUsers(users) {
                 </a>
                 ${passwordWarning}
             </td>
-            <td>${user.name}</td>
+            <td>${user.number || 'N/A'}</td>
             <td><span class="access-badge ${user.access_level}">${user.access_level}</span></td>
             <td>${formattedDate}</td>
             <td>
@@ -157,7 +190,7 @@ async function addNewUser() {
             .insert([{
                 username: username,
                 password: password, // In production, this should be hashed!
-                name: name,
+                number: name,
                 access_level: accessLevel
             }])
             .select();
@@ -195,7 +228,7 @@ async function editUser(userId) {
         document.getElementById('editUserId').value = user.id;
         document.getElementById('editUsername').value = user.username;
         document.getElementById('editPassword').value = ''; // Keep blank
-        document.getElementById('editName').value = user.name;
+        document.getElementById('editName').value = user.number || '';
         document.getElementById('editAccessLevel').value = user.access_level;
 
         // Open the modal
@@ -219,8 +252,8 @@ async function updateUser() {
     const name = document.getElementById('editName').value.trim();
     const accessLevel = document.getElementById('editAccessLevel').value;
 
-    if (!username || !name || !accessLevel) {
-        alert('Please fill in all required fields');
+    if (!username || !accessLevel) {
+        alert('Please fill in username and access level');
         return;
     }
 
@@ -243,9 +276,13 @@ async function updateUser() {
         // Prepare update data
         const updateData = {
             username: username,
-            name: name,
             access_level: accessLevel
         };
+        
+        // Add number field only if provided
+        if (name) {
+            updateData.number = name;
+        }
 
         // Only update password if a new one is provided
         if (password) {
@@ -343,7 +380,7 @@ function togglePassword(inputId) {
         button.textContent = '🙈';
     } else {
         input.type = 'password';
-        button.textContent = '👁️';
+        button.textContent = '🫣';
     }
 }
 

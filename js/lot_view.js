@@ -32,7 +32,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     const user = getCurrentUser();
-    document.getElementById('userName').textContent = user.username;
+    const userNameElement = document.getElementById('userName');
+    userNameElement.textContent = user.username;
+    
+    // Make username clickable only for non-guest users
+    if (user.id !== 'guest') {
+        userNameElement.style.cursor = 'pointer';
+        userNameElement.onclick = () => {
+            window.location.href = 'person_view.html';
+        };
+    }
 
     const lotInfo = getLotInfo();
     if (!lotInfo.id) {
@@ -52,6 +61,7 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('addNewBtn').style.display = 'inline-block';
     }
 
+    loadLotDropdown(); // Load dropdown for switching lots
     loadLotItems();
     setupPasteArea();
 });
@@ -77,7 +87,14 @@ async function loadLotItems() {
             month: 'short',
             day: 'numeric'
         });
-        document.getElementById('lotTitle').textContent = `${decodeURIComponent(currentLot.name)} (${createdDate})`;
+        
+        const lotTitleEl = document.getElementById('lotTitle');
+        if (hasPermission('edit')) {
+            // Make date editable for admin/manager (grayish color)
+            lotTitleEl.innerHTML = `${decodeURIComponent(currentLot.name)} (<span style="cursor: pointer; text-decoration: underline; color: #666;" onclick="editLotDate()">${createdDate}</span>)`;
+        } else {
+            lotTitleEl.textContent = `${decodeURIComponent(currentLot.name)} (${createdDate})`;
+        }
         
         const { data, error } = await supabaseClient
             .from('items')
@@ -451,18 +468,22 @@ async function updateUsernameDropdown() {
     datalist.innerHTML = '';
     
     try {
-        // Fetch all users from Supabase
+        // Fetch all users from Supabase (username and number)
         const { data: users, error } = await supabaseClient
             .from('users')
-            .select('username')
+            .select('username, number')
             .order('username');
         
         if (error) throw error;
         
-        // Add users to dropdown
+        // Add users to dropdown - include number for searching but display username
         users.forEach(user => {
+            // Create option with username as value
             const option = document.createElement('option');
             option.value = user.username;
+            // Add number as label for searching (appears in dropdown but not in input)
+            option.setAttribute('data-number', user.number || '');
+            option.label = user.number ? `${user.username} (${user.number})` : user.username;
             datalist.appendChild(option);
         });
     } catch (error) {
@@ -536,14 +557,32 @@ function setupPasteArea() {
                     if (modal.style.display === 'block') {
                         const pasteAreaElement = document.getElementById('pasteArea');
                         pasteAreaElement.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+                        
+                        // Auto-focus: if username is filled, focus price, else focus username
+                        const usernameInput = document.getElementById('newUsername');
+                        const priceInput = document.getElementById('newPrice');
+                        if (usernameInput.value.trim()) {
+                            priceInput.focus();
+                        } else {
+                            usernameInput.focus();
+                        }
                     } else {
                         // Open the modal with the image already pasted
                         openAddModal();
                         
-                        // Wait a bit for modal to fully render, then show the image
+                        // Wait a bit for modal to fully render, then show the image and set focus
                         setTimeout(() => {
                             const pasteAreaElement = document.getElementById('pasteArea');
                             pasteAreaElement.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+                            
+                            // Auto-focus: if username is filled, focus price, else focus username
+                            const usernameInput = document.getElementById('newUsername');
+                            const priceInput = document.getElementById('newPrice');
+                            if (usernameInput.value.trim()) {
+                                priceInput.focus();
+                            } else {
+                                usernameInput.focus();
+                            }
                         }, 100);
                     }
                 };
@@ -570,6 +609,10 @@ function setupPasteArea() {
 // Upload to Cloudinary
 async function uploadToCloudinary(base64Image) {
     try {
+        console.log('🔄 Starting Cloudinary upload...');
+        console.log('Cloud Name:', CLOUDINARY_CLOUD_NAME);
+        console.log('Upload Preset:', CLOUDINARY_UPLOAD_PRESET);
+        
         const response = await fetch(base64Image);
         const blob = await response.blob();
         
@@ -586,13 +629,17 @@ async function uploadToCloudinary(base64Image) {
         );
         
         if (!uploadResponse.ok) {
-            throw new Error('Upload failed');
+            const errorData = await uploadResponse.json();
+            console.error('❌ Cloudinary error:', errorData);
+            throw new Error(`Upload failed: ${errorData.error?.message || 'Unknown error'}`);
         }
         
         const data = await uploadResponse.json();
+        console.log('✅ Cloudinary upload successful!');
+        console.log('Image URL:', data.secure_url);
         return data.secure_url;
     } catch (error) {
-        console.error('Cloudinary upload error:', error);
+        console.error('❌ Cloudinary upload error:', error);
         throw error;
     }
 }
@@ -642,7 +689,7 @@ async function addNewItem() {
                     .insert([{
                         username: username,
                         password: '', // Empty password - needs to be set later
-                        name: '', // Keep name empty - to be set later
+                        number: '', // Keep number empty - to be set later
                         access_level: 'viewer' // Default access level
                     }]);
                 
@@ -734,6 +781,11 @@ async function openPassModal(itemId, event) {
     
     document.getElementById('passModal').style.display = 'block';
     document.getElementById('passUsername').value = '';
+    
+    // Auto-focus on username input
+    setTimeout(() => {
+        document.getElementById('passUsername').focus();
+    }, 100);
 }
 
 function closePassModal() {
@@ -771,7 +823,7 @@ async function passItem() {
                 .insert([{
                     username: newUsername,
                     password: '',
-                    name: '',
+                    number: '',
                     access_level: 'viewer'
                 }]);
             
@@ -855,6 +907,84 @@ async function deleteItem(itemId, event) {
     } catch (error) {
         console.error('Error deleting item:', error);
         alert('Failed to delete item. Please try again.');
+    }
+}
+
+// Load lot dropdown for switching
+async function loadLotDropdown() {
+    try {
+        const { data: lots, error } = await supabaseClient
+            .from('lots')
+            .select('*');
+        
+        if (error) throw error;
+        
+        // Sort lots numerically by extracting number from lot_name
+        const sortedLots = lots.sort((a, b) => {
+            const numA = parseInt(a.lot_name.match(/(\d+)$/)?.[1] || '0');
+            const numB = parseInt(b.lot_name.match(/(\d+)$/)?.[1] || '0');
+            return numA - numB;
+        });
+        
+        const dropdown = document.getElementById('lotDropdown');
+        dropdown.innerHTML = '';
+        
+        sortedLots.forEach(lot => {
+            const option = document.createElement('option');
+            option.value = lot.id;
+            option.textContent = lot.lot_name;
+            if (lot.id === currentLot.id) {
+                option.selected = true;
+            }
+            dropdown.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading lots:', error);
+    }
+}
+
+// Switch to selected lot
+function switchLot() {
+    const dropdown = document.getElementById('lotDropdown');
+    const selectedLotId = dropdown.value;
+    const selectedLotName = dropdown.options[dropdown.selectedIndex].text;
+    
+    if (selectedLotId && selectedLotId !== currentLot.id) {
+        window.location.href = `lot_view.html?lot_id=${selectedLotId}&lot_name=${encodeURIComponent(selectedLotName)}`;
+    }
+}
+
+// Edit lot date
+async function editLotDate() {
+    const currentDate = new Date(currentLot.created_at);
+    const dateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    const newDate = prompt('Enter new date (YYYY-MM-DD):', dateStr);
+    
+    if (!newDate || newDate === dateStr) {
+        return; // User cancelled or no change
+    }
+    
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+        alert('Invalid date format. Please use YYYY-MM-DD');
+        return;
+    }
+    
+    try {
+        // Update lot date in database
+        const { error } = await supabaseClient
+            .from('lots')
+            .update({ created_at: newDate })
+            .eq('id', currentLot.id);
+        
+        if (error) throw error;
+        
+        alert('✅ Lot date updated successfully!');
+        await loadLotItems(); // Reload to show updated date
+    } catch (error) {
+        console.error('Error updating lot date:', error);
+        alert('Failed to update lot date: ' + error.message);
     }
 }
 

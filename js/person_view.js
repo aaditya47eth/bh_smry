@@ -18,7 +18,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     
     currentUser = getCurrentUser();
-    document.getElementById('userName').textContent = currentUser.username;
+    const userNameElement = document.getElementById('userName');
+    userNameElement.textContent = currentUser.username;
+    
+    // Make username clickable only for non-guest users
+    if (currentUser.id !== 'guest') {
+        userNameElement.style.cursor = 'pointer';
+        userNameElement.onclick = () => {
+            window.location.href = 'person_view.html';
+        };
+    }
     
     // Get username from URL parameter or use current user
     const urlParams = new URLSearchParams(window.location.search);
