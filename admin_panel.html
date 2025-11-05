@@ -49,6 +49,10 @@
                     <span class="menu-icon">●</span>
                     <span class="menu-text">Checklist</span>
                 </div>
+                <div class="menu-item" onclick="switchSection('reviews')">
+                    <span class="menu-icon">●</span>
+                    <span class="menu-text">Reviews</span>
+                </div>
             </div>
         </aside>
 
@@ -229,6 +233,20 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Reviews Section -->
+            <section id="reviewsSection" class="content-section">
+                <div class="section-header">
+                    <h1>Reviews</h1>
+                    <button class="btn btn-primary" onclick="openAdminAddReviewModal()">+ Add Review</button>
+                </div>
+
+                <div class="users-container">
+                    <div id="reviewsTableBody" class="reviews-approval-grid">
+                        <!-- Reviews will be loaded here -->
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -246,13 +264,16 @@
                         <input type="text" id="newUsername" required placeholder="Enter collector name">
                     </div>
                     <div class="form-group">
-                        <label for="newPassword">Password:</label>
+                        <label for="newPassword">Password (optional):</label>
                         <div class="password-input-group">
-                            <input type="password" id="newPassword" required placeholder="Enter password">
+                            <input type="password" id="newPassword" placeholder="Enter password (optional)">
                             <button type="button" class="toggle-password" onclick="togglePassword('newPassword')">
                                 <span id="newPasswordToggle">Show</span>
                             </button>
                         </div>
+                        <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 4px; display: block;">
+                            Leave blank if you want to set password later
+                        </small>
                     </div>
                     <div class="form-group">
                         <label for="newName">Number:</label>
@@ -314,6 +335,44 @@
                     <div class="form-actions">
                         <button type="button" onclick="closeEditUserModal()" class="btn btn-secondary">Cancel</button>
                         <button type="submit" class="btn btn-primary">Update Collector</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Add Review Modal -->
+    <div id="adminAddReviewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Review Image</h2>
+                <button class="close" onclick="closeAdminAddReviewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="adminAddReviewForm" onsubmit="event.preventDefault(); submitAdminAddReview();">
+                    <div class="form-group">
+                        <label for="reviewUsername">Collector Name:</label>
+                        <input type="text" id="reviewUsername" list="collectorsList" required placeholder="Enter or select collector name" autocomplete="off">
+                        <datalist id="collectorsList">
+                            <!-- Collectors will be loaded here -->
+                        </datalist>
+                        <small style="color: var(--text-secondary); font-size: 0.8125rem; margin-top: 4px; display: block;">
+                            Type to select existing collector or enter new name to create
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label>Upload Review Image:</label>
+                        <div id="adminReviewPasteArea" class="image-paste-area" tabindex="0" onclick="document.getElementById('adminReviewFileInput').click()">
+                            <div class="paste-instructions">
+                                📎 Click to select image from files<br>
+                                <small style="font-size: 0.875rem; opacity: 0.7;">or press Ctrl+V to paste</small>
+                            </div>
+                        </div>
+                        <input type="file" id="adminReviewFileInput" accept="image/*" style="display: none;" onchange="handleAdminReviewFileSelect(event)">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" onclick="closeAdminAddReviewModal()" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Upload Review</button>
                     </div>
                 </form>
             </div>

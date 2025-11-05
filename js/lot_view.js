@@ -244,6 +244,16 @@ function renderGallery() {
             
             imgContainer.appendChild(img);
             
+            // Add magnifying glass button in center for full view
+            const magnifyBtn = document.createElement('button');
+            magnifyBtn.className = 'magnify-btn';
+            magnifyBtn.innerHTML = '<img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1762330881/magnifying-glass-solid-full_vujovk.svg" alt="View" class="magnify-icon">';
+            magnifyBtn.onclick = (e) => {
+                e.stopPropagation();
+                openImageFullView(item.picture_url);
+            };
+            imgContainer.appendChild(magnifyBtn);
+            
             // Add three-dot menu for admin/manager
             if (hasPermission('edit')) {
                 const isLocked = isLotLocked();
@@ -271,39 +281,31 @@ function renderGallery() {
         const labelDiv = document.createElement('div');
         labelDiv.className = 'item-label';
         
-        // Make username clickable for admin/manager
-        if (hasPermission('edit')) {
-            const usernameSpan = document.createElement('span');
-            usernameSpan.className = 'username-link';
-            usernameSpan.textContent = username;
-            usernameSpan.style.cursor = 'pointer';
-            usernameSpan.onclick = () => {
-                window.location.href = `person_view.html?username=${encodeURIComponent(username)}`;
-            };
+        // Make username clickable for everyone to view profiles
+        const usernameSpan = document.createElement('span');
+        usernameSpan.className = 'username-link';
+        usernameSpan.textContent = username;
+        usernameSpan.style.cursor = 'pointer';
+        usernameSpan.onclick = () => {
+            window.location.href = `person_view.html?username=${encodeURIComponent(username)}`;
+        };
+        
+        if (showTotals) {
+            labelDiv.appendChild(usernameSpan);
+            labelDiv.appendChild(document.createTextNode(` - `));
             
-            if (showTotals) {
-                labelDiv.appendChild(usernameSpan);
-                labelDiv.appendChild(document.createTextNode(` - `));
-                
-                // Create hoverable total span that switches to "Add new" on hover
-                const totalSpan = document.createElement('span');
-                totalSpan.className = 'total-hover';
-                totalSpan.textContent = `Total: ${total.toFixed(0)}`;
-                totalSpan.dataset.hoverText = 'Add new';
-                totalSpan.onclick = () => {
-                    openAddModal(username);
-                };
-                labelDiv.appendChild(totalSpan);
-            } else {
-                labelDiv.appendChild(usernameSpan);
-            }
+            // Create hoverable total span that switches to "Add new" on hover
+            const totalSpan = document.createElement('span');
+            totalSpan.className = 'total-hover';
+            totalSpan.textContent = `Total: ${total.toFixed(0)}`;
+            totalSpan.dataset.hoverText = 'Add new';
+            totalSpan.onclick = () => {
+                openAddModal(username);
+            };
+            labelDiv.appendChild(totalSpan);
         } else {
-            // Regular text for viewers
-            if (showTotals) {
-                labelDiv.textContent = `${username} - Total: ${total.toFixed(0)}`;
-            } else {
-                labelDiv.textContent = username;
-            }
+            // Without totals, just show clickable username
+            labelDiv.appendChild(usernameSpan);
         }
         
         userSection.appendChild(labelDiv);
@@ -813,6 +815,80 @@ async function addNewItem() {
 }
 
 // Toggle item menu dropdown
+// Open image in full view
+function openImageFullView(imageUrl) {
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: pointer;
+    `;
+    
+    // Create image
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.cssText = `
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    `;
+    
+    // Create close button
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        color: #000;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        font-size: 30px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    `;
+    
+    closeBtn.onmouseover = () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 1)';
+        closeBtn.style.transform = 'scale(1.1)';
+    };
+    
+    closeBtn.onmouseout = () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 0.9)';
+        closeBtn.style.transform = 'scale(1)';
+    };
+    
+    // Close on click
+    const closeModal = () => {
+        document.body.removeChild(overlay);
+    };
+    
+    overlay.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    img.onclick = (e) => e.stopPropagation(); // Don't close when clicking image
+    
+    overlay.appendChild(img);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+}
+
 function toggleItemMenu(event, itemId) {
     event.stopPropagation();
     const menu = document.getElementById(`item-menu-${itemId}`);

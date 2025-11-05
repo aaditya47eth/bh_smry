@@ -34,6 +34,114 @@
     box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
 }
 
+/* Reviews Slider */
+.reviews-slider-container {
+    background: linear-gradient(135deg, #f5f8fa 0%, #e8eef3 100%);
+    padding: 24px 0;
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.reviews-slider {
+    max-width: 1400px;
+    margin: 0 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    position: relative;
+    padding: 0 50px; /* Space for buttons */
+    will-change: scroll-position;
+}
+
+/* Completely hide scrollbar */
+.reviews-slider::-webkit-scrollbar {
+    display: none;
+}
+
+.reviews-slider {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.reviews-track {
+    display: flex;
+    gap: 12px;
+    padding: 4px;
+}
+
+.review-slide {
+    flex-shrink: 0;
+    width: 140px;
+    height: 140px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s;
+}
+
+.review-slide:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+.review-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.review-username {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+    color: white;
+    padding: 6px 8px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* Scroll buttons */
+.review-scroll-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #e8eef3;
+    color: var(--primary-blue);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.25rem;
+    font-weight: bold;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s;
+}
+
+.review-scroll-btn:hover {
+    background: var(--primary-blue);
+    color: white;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 16px rgba(1, 176, 240, 0.3);
+}
+
+.review-scroll-btn.left {
+    left: 10px;
+}
+
+.review-scroll-btn.right {
+    right: 10px;
+}
+
 .dashboard-header {
     display: flex;
     justify-content: space-between;

@@ -2,6 +2,14 @@
 // PERSON VIEW PAGE SCRIPT
 // ============================================
 
+// Cloudinary configuration for main items (used by lot_view.js)
+const CLOUDINARY_CLOUD_NAME = 'daye1yfzy';
+const CLOUDINARY_UPLOAD_PRESET = 'bh_smry_upload';
+
+// Separate Cloudinary account for reviews (to avoid storage limits)
+const REVIEWS_CLOUDINARY_CLOUD_NAME = 'dt5jgkfwb'; // Reviews account
+const REVIEWS_CLOUDINARY_UPLOAD_PRESET = 'review_strg'; // Reviews upload preset
+
 let currentUser = null;
 let targetUsername = null;
 let allLotsData = [];
@@ -48,16 +56,41 @@ window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const usernameParam = urlParams.get('username');
     
-    // Admin can view any user, others can only view themselves
-    if (usernameParam && currentUser.access_level === 'admin') {
+    // Anyone can view any user's profile (for reviews)
+    if (usernameParam) {
         targetUsername = usernameParam;
     } else {
         targetUsername = currentUser.username;
     }
     
-    document.getElementById('personTitle').textContent = 
-        targetUsername === currentUser.username ? 'My Items' : `${targetUsername}'s Items`;
+    const isOwnProfile = targetUsername === currentUser.username;
+    const isAdmin = currentUser.access_level.toLowerCase() === 'admin';
+    
+    document.getElementById('personTitle').textContent =
+        isOwnProfile ? 'My Items' : `${targetUsername}'s Items`;
     document.getElementById('displayUsername').textContent = targetUsername;
+    
+    // Hide lot details tab and stats if viewing someone else's profile (unless admin)
+    if (!isOwnProfile && !isAdmin) {
+        // Hide lot details tab
+        document.getElementById('lotsTab').style.display = 'none';
+        document.querySelector('.tab-btn[onclick="switchPersonTab(\'lots\')"]').style.display = 'none';
+        
+        // Hide only the stats summary (Total Items, Total Amount, Lots), keep the username visible
+        const totalSummary = document.getElementById('totalSummary');
+        if (totalSummary) {
+            totalSummary.style.display = 'none';
+        }
+        
+        // Auto-switch to reviews tab
+        switchPersonTab('reviews');
+    } else {
+        // Show stats summary for own profile or admin
+        const totalSummary = document.getElementById('totalSummary');
+        if (totalSummary) {
+            totalSummary.style.display = 'flex';
+        }
+    }
     
     // Apply initial zoom
     applyZoom();
@@ -521,6 +554,391 @@ function applyZoom() {
 function updateZoomSlider() {
     document.getElementById('zoomSlider').value = zoomLevel;
     document.getElementById('zoomLevel').textContent = zoomLevel + '%';
+}
+
+// ==============================================================
+// TAB SWITCHING & REVIEWS FUNCTIONALITY
+// ==============================================================
+
+let reviewPastedImage = null;
+
+// Switch between tabs
+function switchPersonTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        // Check if this button is for the target tab
+        if ((tabName === 'lots' && btn.textContent.includes('Lot Details')) ||
+            (tabName === 'reviews' && btn.textContent.includes('User Reviews'))) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (tabName === 'lots') {
+        document.getElementById('lotsTab').classList.add('active');
+    } else if (tabName === 'reviews') {
+        document.getElementById('reviewsTab').classList.add('active');
+        loadUserReviews();
+    }
+}
+
+// Load user reviews
+async function loadUserReviews() {
+    const container = document.getElementById('userReviewsContainer');
+    container.innerHTML = '<div class="loading">Loading reviews...</div>';
+    
+    // Hide/show upload button based on whether viewing own profile
+    const isOwnProfile = targetUsername === currentUser.username;
+    const uploadBtn = document.querySelector('.btn-upload-review');
+    
+    try {
+        // Show only visible reviews if viewing someone else's profile
+        let query = supabaseClient
+            .from('user_reviews')
+            .select('*')
+            .eq('username', targetUsername);
+        
+        // Non-admins viewing others can only see visible reviews
+        if (!isOwnProfile && currentUser.access_level.toLowerCase() !== 'admin') {
+            query = query.eq('status', 'visible');
+        }
+        
+        const { data: reviews, error } = await query.order('created_at', { ascending: false });
+        
+        // Check review count and disable upload button if at limit
+        if (uploadBtn && isOwnProfile) {
+            const reviewCount = reviews ? reviews.length : 0;
+            if (reviewCount >= 20) {
+                uploadBtn.disabled = true;
+                uploadBtn.style.opacity = '0.5';
+                uploadBtn.style.cursor = 'not-allowed';
+                uploadBtn.title = 'Maximum 20 reviews reached';
+            } else {
+                uploadBtn.disabled = false;
+                uploadBtn.style.opacity = '1';
+                uploadBtn.style.cursor = 'pointer';
+                uploadBtn.title = 'Add Review Image';
+                uploadBtn.style.display = 'inline-block';
+            }
+        } else if (uploadBtn) {
+            uploadBtn.style.display = 'none';
+        }
+        
+        if (error) throw error;
+        
+        if (!reviews || reviews.length === 0) {
+            const emptyMessage = isOwnProfile 
+                ? 'No reviews yet. Click "Add Review Image" to upload your first review!'
+                : 'No reviews yet.';
+            container.innerHTML = `<div style="text-align: center; padding: 40px; color: #666;">${emptyMessage}</div>`;
+            return;
+        }
+        
+        container.innerHTML = '';
+        reviews.forEach(review => {
+            const card = document.createElement('div');
+            card.className = 'review-card';
+            
+            // Show delete button only for own profile or admin
+            const canDelete = isOwnProfile || currentUser.access_level.toLowerCase() === 'admin';
+            const deleteButton = canDelete 
+                ? `<div class="review-actions">
+                    <button class="btn-delete-review" onclick="deleteReview('${review.id}', '${review.image_url}')">Delete</button>
+                   </div>`
+                : '';
+            
+            // Show status dot only for own profile
+            const isVisible = review.status === 'visible';
+            const statusDot = isOwnProfile 
+                ? `<span class="review-status-dot ${isVisible ? 'green' : 'red'}" title="${isVisible ? 'Visible' : 'Hidden'}"></span>`
+                : '';
+            
+            card.innerHTML = `
+                <img src="${review.image_url}" alt="Review" class="review-image" onclick="openReviewFullView('${review.image_url}')">
+                ${statusDot}
+                ${deleteButton}
+            `;
+            container.appendChild(card);
+        });
+        
+    } catch (error) {
+        console.error('Error loading reviews:', error);
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load reviews</div>';
+    }
+}
+
+// Open upload review modal
+async function openUploadReviewModal() {
+    // Check review count before opening modal
+    try {
+        const { data: existingReviews, error } = await supabaseClient
+            .from('user_reviews')
+            .select('id')
+            .eq('username', targetUsername);
+        
+        if (error) throw error;
+        
+        if (existingReviews && existingReviews.length >= 20) {
+            alert('Maximum 20 reviews reached. Please delete some reviews before uploading new ones.');
+            return;
+        }
+        
+        document.getElementById('uploadReviewModal').style.display = 'block';
+        setupReviewPasteArea();
+        setTimeout(() => {
+            document.getElementById('reviewPasteArea').focus();
+        }, 100);
+    } catch (error) {
+        console.error('Error checking review count:', error);
+        alert('Failed to open upload modal: ' + error.message);
+    }
+}
+
+// Close upload review modal
+function closeUploadReviewModal() {
+    document.getElementById('uploadReviewModal').style.display = 'none';
+    document.getElementById('uploadReviewForm').reset();
+    document.getElementById('reviewFileInput').value = '';
+    const pasteArea = document.getElementById('reviewPasteArea');
+    pasteArea.classList.remove('has-image');
+    pasteArea.onclick = () => document.getElementById('reviewFileInput').click(); // Restore onclick
+    pasteArea.innerHTML = '<div class="paste-instructions">📎 Click to select image from files<br><small style="font-size: 0.875rem; opacity: 0.7;">or press Ctrl+V to paste</small></div>';
+    reviewPastedImage = null;
+}
+
+// Setup paste area for reviews
+function setupReviewPasteArea() {
+    const pasteArea = document.getElementById('reviewPasteArea');
+    
+    pasteArea.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const items = e.clipboardData.items;
+        
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    reviewPastedImage = event.target.result;
+                    pasteArea.classList.add('has-image');
+                    pasteArea.onclick = null; // Remove onclick to prevent re-triggering file picker
+                    pasteArea.innerHTML = `<img src="${reviewPastedImage}" alt="Pasted image" title="Click to change image" style="cursor: pointer;">`;
+                    
+                    // Allow clicking the image to select a new one
+                    pasteArea.querySelector('img').onclick = (e) => {
+                        e.stopPropagation();
+                        document.getElementById('reviewFileInput').click();
+                    };
+                };
+                
+                reader.readAsDataURL(blob);
+                break;
+            }
+        }
+    });
+}
+
+// Handle file selection for review image
+function handleReviewFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
+        return;
+    }
+    
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        alert('Image size should be less than 10MB');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        reviewPastedImage = e.target.result;
+        const pasteArea = document.getElementById('reviewPasteArea');
+        pasteArea.classList.add('has-image');
+        pasteArea.onclick = null; // Remove onclick to prevent re-triggering file picker
+        pasteArea.innerHTML = `<img src="${reviewPastedImage}" alt="Selected image" title="Click to change image" style="cursor: pointer;">`;
+        
+        // Allow clicking the image to select a new one
+        pasteArea.querySelector('img').onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('reviewFileInput').click();
+        };
+    };
+    reader.readAsDataURL(file);
+}
+
+// Upload review image
+async function uploadReviewImage() {
+    if (!reviewPastedImage) {
+        alert('Please select or paste an image first!');
+        return;
+    }
+    
+    const uploadBtn = document.querySelector('#uploadReviewForm button[type="submit"]');
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading...';
+    
+    try {
+        // Check existing reviews count
+        const { data: existingReviews, error: countError } = await supabaseClient
+            .from('user_reviews')
+            .select('id')
+            .eq('username', targetUsername);
+        
+        if (countError) throw countError;
+        
+        // Check if user has reached the limit of 20 reviews
+        if (existingReviews && existingReviews.length >= 20) {
+            alert('Maximum 20 reviews reached. Please delete some reviews before uploading new ones.');
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload Review';
+            return;
+        }
+        
+        // Upload to Cloudinary
+        const cloudinaryUrl = await uploadToCloudinaryFromPersonView(reviewPastedImage);
+        
+        // Insert new review (hidden by default)
+        const { error } = await supabaseClient
+            .from('user_reviews')
+            .insert([{
+                user_id: currentUser.id,
+                username: targetUsername,
+                image_url: cloudinaryUrl,
+                status: 'hidden'
+            }]);
+        
+        if (error) throw error;
+        
+        closeUploadReviewModal();
+        loadUserReviews();
+        
+    } catch (error) {
+        console.error('Error uploading review:', error);
+        alert('Failed to upload review: ' + error.message);
+    } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload Review';
+    }
+}
+
+// Upload to Cloudinary (from person view)
+async function uploadToCloudinaryFromPersonView(base64Image) {
+    const formData = new FormData();
+    formData.append('file', base64Image);
+    formData.append('upload_preset', REVIEWS_CLOUDINARY_UPLOAD_PRESET); // Use reviews account
+    formData.append('folder', 'user_reviews');
+    
+    const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${REVIEWS_CLOUDINARY_CLOUD_NAME}/image/upload`, // Use reviews account
+        {
+            method: 'POST',
+            body: formData
+        }
+    );
+    
+    if (!response.ok) {
+        throw new Error('Cloudinary upload failed');
+    }
+    
+    const data = await response.json();
+    return data.secure_url;
+}
+
+// Delete image from Cloudinary
+// ==============================================================
+// CLOUDINARY IMAGE CLEANUP (Manual Process)
+// ==============================================================
+// NOTE: Automatic image deletion from Cloudinary requires server-side implementation
+// with your API secret for security reasons. This cannot be done safely from client-side.
+//
+// To manually clean up unused images:
+// 1. Go to your Cloudinary dashboard: https://cloudinary.com/console
+// 2. Navigate to Media Library > user_reviews folder
+// 3. Delete images that are logged in the browser console
+// 4. Or use Cloudinary's API from your server/backend
+//
+// For production, implement a server-side endpoint that:
+// - Receives the image public_id
+// - Uses cloudinary.uploader.destroy(public_id, options)
+// - Returns success/failure status
+// ==============================================================
+
+// Open review image in full view
+function openReviewFullView(imageUrl) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.9); display: flex; align-items: center;
+        justify-content: center; z-index: 10000; cursor: pointer;
+    `;
+    
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.cssText = `
+        max-width: 90%; max-height: 90%; object-fit: contain;
+        border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    `;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+        position: absolute; top: 20px; right: 20px;
+        background: rgba(255, 255, 255, 0.9); color: #000;
+        border: none; width: 40px; height: 40px; border-radius: 50%;
+        font-size: 30px; cursor: pointer; display: flex;
+        align-items: center; justify-content: center; transition: all 0.2s;
+    `;
+    
+    closeBtn.onmouseover = () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 1)';
+        closeBtn.style.transform = 'scale(1.1)';
+    };
+    closeBtn.onmouseout = () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 0.9)';
+        closeBtn.style.transform = 'scale(1)';
+    };
+    
+    const closeModal = () => document.body.removeChild(overlay);
+    overlay.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    img.onclick = (e) => e.stopPropagation();
+    
+    overlay.appendChild(img);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+}
+
+// Delete review
+async function deleteReview(reviewId, imageUrl) {
+    if (!confirm('Are you sure you want to delete this review?')) return;
+    
+    try {
+        // Delete from database
+        const { error } = await supabaseClient
+            .from('user_reviews')
+            .delete()
+            .eq('id', reviewId);
+        
+        if (error) throw error;
+        
+        // Log image URL for manual cleanup
+        console.log('Review deleted. Image URL (for manual Cloudinary cleanup):', imageUrl);
+        
+        loadUserReviews();
+        
+    } catch (error) {
+        console.error('Error deleting review:', error);
+    }
 }
 
 // Logout function
