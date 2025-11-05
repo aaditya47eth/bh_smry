@@ -3,6 +3,8 @@
 // ============================================
 
 let currentUser = null;
+let allLots = [];
+let displayedLotsCount = 12; // Initially show 12 lots
 
 // Check authentication
 window.addEventListener('DOMContentLoaded', () => {
@@ -23,14 +25,23 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
     
-    // Show admin panel button for admin only
-    if (currentUser.access_level.toLowerCase() === 'admin') {
-        document.getElementById('adminPanelBtn').style.display = 'flex';
+    // Show/hide login/logout buttons based on guest status
+    if (currentUser.id === 'guest') {
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('loginBtn').style.display = 'inline-block';
+    } else {
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('loginBtn').style.display = 'none';
     }
     
-    // Show create button for admin/manager only
+    // Show admin panel button in header for admin only
+    if (currentUser.access_level.toLowerCase() === 'admin') {
+        document.getElementById('adminPanelHeaderBtn').style.display = 'inline-block';
+    }
+    
+    // Show month filter for admin/manager only
     if (hasPermission('add')) {
-        document.getElementById('createLotBtn').style.display = 'flex';
+        document.getElementById('monthFilter').style.display = 'block';
     }
     
     loadLots();
@@ -52,19 +63,79 @@ async function loadLots() {
 
         if (error) throw error;
 
-        // Sort lots numerically by extracting number from lot_name
+        // Sort lots numerically by extracting number from lot_name (descending order)
         const sortedLots = lots.sort((a, b) => {
             const numA = parseInt(a.lot_name.match(/(\d+)$/)?.[1] || '0');
             const numB = parseInt(b.lot_name.match(/(\d+)$/)?.[1] || '0');
-            return numA - numB;
+            return numB - numA; // Descending order
         });
 
-        displayLots(sortedLots);
+        allLots = sortedLots;
+        populateMonthFilter(sortedLots);
+        filterLotsByMonth();
     } catch (error) {
         console.error('Error loading lots:', error);
         document.getElementById('lotsContainer').innerHTML = 
             '<div class="no-lots"><h3>Error loading lots</h3></div>';
     }
+}
+
+function populateMonthFilter(lots) {
+    const monthFilter = document.getElementById('monthFilter');
+    if (!monthFilter) return;
+    
+    const months = new Set();
+    lots.forEach(lot => {
+        const date = new Date(lot.created_at);
+        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        months.add(monthYear);
+    });
+    
+    const sortedMonths = Array.from(months).sort().reverse();
+    
+    monthFilter.innerHTML = '<option value="all">All Months</option>';
+    sortedMonths.forEach(monthYear => {
+        const [year, month] = monthYear.split('-');
+        const date = new Date(year, month - 1);
+        const monthName = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        const option = document.createElement('option');
+        option.value = monthYear;
+        option.textContent = monthName;
+        monthFilter.appendChild(option);
+    });
+    
+    // Set default to current month
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (Array.from(months).includes(currentMonth)) {
+        monthFilter.value = currentMonth;
+    }
+}
+
+function filterLotsByMonth() {
+    const monthFilter = document.getElementById('monthFilter');
+    if (!monthFilter) {
+        displayLots(allLots);
+        return;
+    }
+    
+    const selectedMonth = monthFilter.value;
+    
+    // Reset displayed count when filtering
+    displayedLotsCount = 12;
+    
+    if (selectedMonth === 'all') {
+        displayLots(allLots);
+        return;
+    }
+    
+    const filteredLots = allLots.filter(lot => {
+        const date = new Date(lot.created_at);
+        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        return monthYear === selectedMonth;
+    });
+    
+    displayLots(filteredLots);
 }
 
 function displayLots(lots) {
@@ -81,9 +152,27 @@ function displayLots(lots) {
     }
 
     container.innerHTML = '';
-    container.className = 'lots-grid';
+    const gridContainer = document.createElement('div');
+    gridContainer.className = 'lots-grid';
 
-    lots.forEach(lot => {
+    // Add "Create New Lot" card if user has permission
+    if (hasPermission('add')) {
+        const createCard = document.createElement('div');
+        createCard.className = 'lot-card create-lot-card';
+        createCard.onclick = () => openCreateModal();
+        createCard.innerHTML = `
+            <div class="create-lot-content">
+                <div class="create-icon">+</div>
+                <div class="create-text">Create New Lot</div>
+            </div>
+        `;
+        gridContainer.appendChild(createCard);
+    }
+
+    // Display only the first 'displayedLotsCount' lots
+    const lotsToShow = lots.slice(0, displayedLotsCount);
+    
+    lotsToShow.forEach(lot => {
         const card = document.createElement('div');
         card.className = 'lot-card';
         
@@ -106,12 +195,12 @@ function displayLots(lots) {
         ` : `<div class="lot-status-badge ${lot.status ? lot.status.replace(/\s+/g, '-').toLowerCase() : 'going-on'}">${lot.status || 'Going on'}</div>`;
         
         card.innerHTML = `
-            <div class="lot-card-image">
-                <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761836036/5d44bf3a-5835-4861-a545-4062a1d845e6.png" alt="Lot Icon">
-            </div>
             <div class="lot-card-content" onclick="viewLot('${lot.id}', '${lot.lot_name.replace(/'/g, "\\'")}')">
-                <div class="lot-name">${lot.lot_name}</div>
-                <div class="lot-date">${createdDate}</div>
+                <div class="lot-header">
+                    <div class="lot-name">${lot.lot_name}</div>
+                    <div class="lot-divider"></div>
+                    <div class="lot-date">${createdDate}</div>
+                </div>
                 ${statusDropdown}
             </div>
             ${canDelete ? `
@@ -125,8 +214,25 @@ function displayLots(lots) {
             ` : ''}
         `;
         
-        container.appendChild(card);
+        gridContainer.appendChild(card);
     });
+    
+    container.appendChild(gridContainer);
+    
+    // Add "Show More" button if there are more lots to display
+    if (lots.length > displayedLotsCount) {
+        const showMoreBtn = document.createElement('button');
+        showMoreBtn.className = 'show-more-btn';
+        showMoreBtn.innerHTML = `
+            Show More (${lots.length - displayedLotsCount} remaining)
+            <span class="arrow-down">▼</span>
+        `;
+        showMoreBtn.onclick = () => {
+            displayedLotsCount += 12;
+            displayLots(lots);
+        };
+        container.appendChild(showMoreBtn);
+    }
 }
 
 function viewLot(lotId, lotName) {
@@ -211,7 +317,6 @@ document.getElementById('createLotForm').addEventListener('submit', async (e) =>
     
     const lotName = document.getElementById('lotName').value.trim();
     const lotDescription = document.getElementById('lotDescription').value.trim();
-    const lotStatus = document.getElementById('lotStatus').value;
 
     try {
         const { data, error } = await supabaseClient
@@ -219,7 +324,7 @@ document.getElementById('createLotForm').addEventListener('submit', async (e) =>
             .insert([{
                 lot_name: lotName,
                 description: lotDescription,
-                status: lotStatus,
+                status: 'Going on',
                 created_by_user_id: currentUser.id
             }])
             .select();

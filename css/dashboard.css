@@ -1,5 +1,5 @@
 /* ============================================
-   DASHBOARD PAGE STYLES - Blue & Black Theme
+   DASHBOARD PAGE STYLES - Modern Light Theme
    ============================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
@@ -11,339 +11,567 @@
 .user-info {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
 }
 
 .my-items-btn {
-    background: var(--primary-blue);
-    color: var(--white);
+    background: #01b0f0;
+    color: white;
     border: none;
-    padding: 10px 18px;
+    padding: 8px 16px;
     border-radius: 8px;
-    font-size: 0.9em;
-    font-weight: 600;
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
 .my-items-btn:hover {
-    background: var(--primary-blue-dark);
-    transform: translateY(-2px);
-}
-
-.user-name {
-    font-size: 1em;
-    opacity: 0.9;
-}
-
-.access-badge {
-    background: rgba(255,255,255,0.2);
-    padding: 5px 15px;
-    border-radius: 20px;
-    font-size: 0.85em;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.logout-btn {
-    background: rgba(255,255,255,0.2);
-    color: var(--white);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: background 0.3s;
-}
-
-.logout-btn:hover {
-    background: rgba(255,255,255,0.3);
+    background: #0099d6;
+    box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
 }
 
 .dashboard-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 28px;
 }
 
 .dashboard-title {
-    font-size: 1.6em;
-    color: var(--white);
+    font-size: 1.75rem;
+    color: #2c3e50;
     font-weight: 600;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    letter-spacing: -0.02em;
 }
 
 .header-actions {
     display: flex;
     gap: 12px;
-    align-items: center;
 }
 
-.create-lot-btn {
-    background: var(--primary-blue);
-    color: var(--white);
-    border: none;
-    padding: 12px 20px;
-    border-radius: 10px;
-    font-size: 0.9em;
-    font-weight: 600;
+#monthFilter {
+    padding: 10px 16px;
+    border: 1px solid #e8eef3;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #2c3e50;
+    background: white;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.3s, transform 0.2s;
-}
-
-.create-lot-btn:hover {
-    background: var(--primary-blue-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
-}
-
-.lots-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 25px;
-}
-
-.lot-card {
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    transition: transform 0.3s, box-shadow 0.3s;
-    position: relative;
-    display: flex;
-    flex-direction: row;
-    overflow: visible; /* Changed from hidden to visible to prevent menu clipping */
-    height: 120px;
-}
-
-.lot-card-image,
-.lot-card-content {
-    overflow: hidden; /* Keep content from overflowing */
-}
-
-.lot-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
-}
-
-.lot-card-image {
-    width: 120px;
-    height: 120px;
-    flex-shrink: 0;
-    overflow: hidden;
-    border-radius: 15px 0 0 15px; /* Match parent border radius */
-}
-
-.lot-card-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.lot-card-content {
-    flex: 1;
-    cursor: pointer;
-    padding: 20px 25px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.lot-name {
-    font-size: 1.1em;
-    font-weight: 600;
-    color: var(--white);
-    margin-bottom: 6px;
-}
-
-.lot-date {
-    color: #eee;
-    font-size: 0.75em;
-    font-weight: 400;
-}
-
-.lot-status-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.7em;
-    font-weight: 600;
-    margin-top: 8px;
-    text-transform: capitalize;
-}
-
-.lot-status-badge.going-on {
-    background: #fbbf24;
-    color: #78350f;
-}
-
-.lot-status-badge.yet-to-arrive {
-    background: #3b82f6;
-    color: var(--white);
-}
-
-.lot-status-badge.arrived {
-    background: #10b981;
-    color: var(--white);
-}
-
-.lot-status-badge.delivered {
-    background: #8b5cf6;
-    color: var(--white);
-}
-
-.lot-status-dropdown {
-    margin-top: 8px;
-    padding: 5px 10px;
-    border-radius: 6px;
-    border: 2px solid var(--light-gray);
-    background: var(--white);
-    font-size: 0.7em;
-    font-weight: 600;
-    cursor: pointer;
-    outline: none;
     transition: all 0.2s;
 }
 
-.lot-status-dropdown:hover {
-    border-color: var(--primary-blue);
+#monthFilter:hover {
+    border-color: #01b0f0;
 }
 
-.lot-status-dropdown:focus {
-    border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+#monthFilter:focus {
+    outline: none;
+    border-color: #01b0f0;
+    box-shadow: 0 0 0 3px rgba(1, 176, 240, 0.1);
 }
 
-/* Three-dot menu */
-.lot-menu {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-}
-
-.menu-btn {
-    background: transparent;
-    color: var(--white);
-    border: none;
-    width: 32px;
-    height: 32px;
-    font-size: 1.5em;
-    cursor: pointer;
+.create-lot-card {
+    background: white;
+    border-color: #e8eef3;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s;
-    line-height: 1;
-    padding: 0;
-}
-
-.menu-btn:hover {
-    color: var(--light-gray);
-    transform: scale(1.1);
-}
-
-.menu-dropdown {
-    position: absolute;
-    top: 40px;
-    right: 0;
-    background: var(--white);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-    min-width: 150px;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-10px);
-    transition: all 0.3s;
-    z-index: 100; /* Increased z-index to ensure it's on top */
-}
-
-.menu-dropdown.show {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-}
-
-.menu-dropdown button {
-    width: 100%;
-    padding: 10px 14px;
-    border: none;
-    background: transparent;
-    color: var(--secondary-black);
-    text-align: left;
+    min-height: 120px;
     cursor: pointer;
-    font-size: 0.85em;
-    font-weight: 500;
-    transition: background 0.2s;
+}
+
+.create-lot-card:hover {
+    background: white;
+    border-color: #01b0f0;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(1, 176, 240, 0.12);
+}
+
+.create-lot-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #2c3e50;
+    pointer-events: none;
+}
+
+.create-icon {
+    font-size: 2.5rem;
+    font-weight: 300;
+    line-height: 1;
+    color: #01b0f0;
+}
+
+.create-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #2c3e50;
+}
+
+.create-lot-btn {
+    background: #01b0f0;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
+.create-lot-btn:hover {
+    background: #0099d6;
+    box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
+}
+
+.admin-panel-btn {
+    background: white;
+    color: #01b0f0;
+    padding: 10px 20px;
+    border: 1px solid #e8eef3;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-panel-btn:hover {
+    background: #f5f8fa;
+    border-color: #01b0f0;
+}
+
+/* Lots Grid */
+.lots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.lot-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid #e8eef3;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 120px;
+}
+
+.lot-card:hover {
+    border-color: #01b0f0;
+    box-shadow: 0 8px 16px rgba(1, 176, 240, 0.12);
+    transform: translateY(-4px);
+}
+
+.lot-card-image {
+    display: none;
+}
+
+.lot-card-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lot-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-left: 16px;
+    padding-right: 30px;
+}
+
+.lot-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #2c3e50;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    margin: 0;
+    text-align: left;
+}
+
+.lot-divider {
+    width: 1px;
+    height: 18px;
+    background: #e8eef3;
+    flex-shrink: 0;
+}
+
+.lot-date {
+    font-size: 0.75rem;
+    color: #95a5a6;
+    letter-spacing: 0.02em;
+    margin: 0;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.lot-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    width: fit-content;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    align-self: flex-start;
+}
+
+.lot-status-badge.going-on {
+    background: #d1f4e0;
+    color: #0d9488;
+}
+
+.lot-status-badge.yet-to-arrive {
+    background: #fed7aa;
+    color: #c2410c;
+}
+
+.lot-status-badge.arrived {
+    background: #ddd6fe;
+    color: #7c3aed;
+}
+
+/* Lot status dropdown */
+select.lot-status-dropdown {
+    padding: 6px 12px;
+    border: 2px solid transparent;
+    border-radius: 20px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    align-self: flex-start;
+    width: fit-content;
+}
+
+select.lot-status-dropdown:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px #e6f7fd;
+}
+
+select.lot-status-dropdown.going-on {
+    background: #d1f4e0;
+    color: #0d9488;
+    border-color: #0d9488;
+}
+
+select.lot-status-dropdown.yet-to-arrive {
+    background: #fed7aa;
+    color: #c2410c;
+    border-color: #c2410c;
+}
+
+select.lot-status-dropdown.arrived {
+    background: #ddd6fe;
+    color: #7c3aed;
+    border-color: #7c3aed;
+}
+
+/* Lot Menu */
+.lot-menu {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+.menu-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1.25rem;
+    color: #95a5a6;
+    transition: all 0.2s;
+}
+
+.menu-btn:hover {
+    background: #f5f8fa;
+    color: #2c3e50;
+}
+
+.menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #e8eef3;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+    min-width: 140px;
+    margin-top: 4px;
+}
+
+.menu-dropdown.show {
+    display: block;
+}
+
+.menu-dropdown button {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #2c3e50;
+    transition: all 0.2s;
+}
+
 .menu-dropdown button:hover {
-    background: var(--very-light-gray);
+    background: #f5f8fa;
+}
+
+.menu-dropdown button:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.menu-dropdown button:last-child {
+    border-radius: 0 0 8px 8px;
 }
 
 .menu-dropdown button.delete-menu-item {
-    color: var(--danger);
+    color: #dc2626;
 }
 
 .menu-dropdown button.delete-menu-item:hover {
     background: #fee2e2;
 }
 
+/* Show More Button */
+.show-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 24px auto 0;
+    padding: 12px 24px;
+    background: white;
+    border: 2px solid #01b0f0;
+    color: #01b0f0;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.show-more-btn:hover {
+    background: #01b0f0;
+    color: white;
+}
+
+.show-more-btn .arrow-down {
+    font-size: 0.75rem;
+    transition: transform 0.2s;
+}
+
+.show-more-btn:hover .arrow-down {
+    transform: translateY(2px);
+}
+
+/* No Lots Message */
 .no-lots {
     text-align: center;
-    padding: 60px 20px;
-    color: var(--medium-gray);
+    padding: 80px 20px;
+    color: #6c757d;
 }
 
 .no-lots h3 {
-    font-size: 1.5em;
-    margin-bottom: 10px;
-    color: var(--dark-gray);
+    font-size: 1.25rem;
+    color: #2c3e50;
+    margin-bottom: 12px;
+}
+
+.no-lots p {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-bottom: 24px;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    padding: 28px;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 90%;
+    border: 1px solid #e8eef3;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e8eef3;
+}
+
+.modal-header h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #6c757d;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+.modal-close:hover {
+    background: #f5f8fa;
+    color: #2c3e50;
+}
+
+.modal-body {
+    margin: 20px 0;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.btn-cancel {
+    background: white;
+    color: #2c3e50;
+    border: 1px solid #e8eef3;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+    background: #f5f8fa;
+}
+
+.btn-primary,
+.btn-create {
+    background: #01b0f0;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover,
+.btn-create:hover {
+    background: #0099d6;
+    box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
 }
 
 .modal-buttons {
     display: flex;
     gap: 10px;
+    justify-content: flex-end;
     margin-top: 20px;
-    justify-content: flex-start;
 }
 
-.modal-buttons button {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 1em;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-create {
-    background: var(--success);
-    color: var(--white);
-}
-
-.btn-create:hover {
-    background: #059669;
-}
-
-.btn-cancel {
-    background: var(--danger);
-    color: var(--white);
-}
-
-.btn-cancel:hover {
+.btn-danger {
     background: #dc2626;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s;
 }
 
+.btn-danger:hover {
+    background: #b91c1c;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .header-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .header-actions button {
+        width: 100%;
+    }
+
+    .lots-grid {
+        grid-template-columns: 1fr;
+    }
+}

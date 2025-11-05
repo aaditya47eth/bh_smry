@@ -18,10 +18,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = 'dashboard.html';
         return;
     }
-
-    // Display current user info
-    document.getElementById('currentUserName').textContent = currentUser.username;
-    document.getElementById('currentUserRole').textContent = currentUser.access_level;
     
     const userNameElement = document.getElementById('userName');
     userNameElement.textContent = currentUser.username;
@@ -33,10 +29,83 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.location.href = 'person_view.html';
         };
     }
+    
+    // Show/hide login/logout buttons based on guest status
+    if (currentUser.id === 'guest') {
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('loginBtn').style.display = 'inline-block';
+    } else {
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('loginBtn').style.display = 'none';
+    }
+    
+    // Show admin panel button in header (already on admin panel, but keep for consistency)
+    if (currentUser.access_level.toLowerCase() === 'admin') {
+        document.getElementById('adminPanelHeaderBtn').style.display = 'inline-block';
+    }
+    
+    // Check if a specific section should be opened from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const section = urlParams.get('section');
+    if (section === 'checklist') {
+        switchSection('checklist');
+    }
 
     // Load all users
     loadUsers();
+    
+    // Load stats
+    loadStats();
 });
+
+// Switch between sections (Users, Stats)
+function switchSection(sectionName) {
+    // Hide all sections
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Remove active class from all menu items
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Show selected section
+    if (sectionName === 'users') {
+        document.getElementById('usersSection').classList.add('active');
+        document.querySelector('.menu-item[onclick*="users"]').classList.add('active');
+    } else if (sectionName === 'stats') {
+        document.getElementById('statsSection').classList.add('active');
+        document.querySelector('.menu-item[onclick*="stats"]').classList.add('active');
+        loadStats(); // Reload stats when switching to this section
+    } else if (sectionName === 'checklist') {
+        document.getElementById('checklistSection').classList.add('active');
+        document.querySelector('.menu-item[onclick*="checklist"]').classList.add('active');
+        loadChecklistData(); // Load checklist data when switching to this section
+    }
+}
+
+// Switch between tabs (Lot-wise, Person-wise)
+function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    if (tabName === 'lot') {
+        document.getElementById('lotTab').classList.add('active');
+        document.querySelector('.tab-btn[onclick*="lot"]').classList.add('active');
+    } else if (tabName === 'person') {
+        document.getElementById('personTab').classList.add('active');
+        document.querySelector('.tab-btn[onclick*="person"]').classList.add('active');
+    }
+}
 
 // Load all users from Supabase
 async function loadUsers() {
@@ -92,22 +161,16 @@ function displayUsers(users) {
     tbody.innerHTML = '';
 
     if (!users || users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #666;">No users found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #666;">No users found</td></tr>';
         return;
     }
 
     users.forEach(user => {
         const tr = document.createElement('tr');
         
-        const formattedDate = new Date(user.created_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-        
         // Check if password is empty
         const passwordWarning = (!user.password || user.password === '') 
-            ? '<span class="password-warning">⚠️ Password Not Set</span>' 
+            ? '<span class="password-warning">! Password Not Set</span>' 
             : '';
 
         tr.innerHTML = `
@@ -119,10 +182,9 @@ function displayUsers(users) {
             </td>
             <td>${user.number || 'N/A'}</td>
             <td><span class="access-badge ${user.access_level}">${user.access_level}</span></td>
-            <td>${formattedDate}</td>
             <td>
-                <button class="action-btn edit" onclick="editUser('${user.id}')">✏️ Edit</button>
-                <button class="action-btn delete" onclick="deleteUser('${user.id}', '${user.username}')">🗑️ Delete</button>
+                <button class="action-btn edit" onclick="editUser('${user.id}')">Edit</button>
+                <button class="action-btn delete" onclick="deleteUser('${user.id}', '${user.username}')">Delete</button>
             </td>
         `;
 
@@ -362,6 +424,263 @@ async function deleteUser(userId, username) {
     }
 }
 
+// ============================================
+// CHECKLIST FUNCTIONALITY
+// ============================================
+
+// Load checklist data
+async function loadChecklistData() {
+    try {
+        const { data: lots, error } = await supabaseClient
+            .from('lots')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Get all items to count per lot
+        let items;
+        let { data: itemsData, error: itemsError } = await supabaseClient
+            .from('items')
+            .select('lot_id, checked');
+
+        if (itemsError) {
+            console.error('Error fetching items:', itemsError);
+            const { data: itemsWithoutChecked, error: itemsError2 } = await supabaseClient
+                .from('items')
+                .select('lot_id');
+            
+            if (itemsError2) throw itemsError2;
+            items = itemsWithoutChecked.map(item => ({ ...item, checked: false }));
+        } else {
+            items = itemsData;
+        }
+
+        const container = document.getElementById('checklistTableBody');
+        container.innerHTML = '';
+
+        if (!lots || lots.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No lots available</div>';
+            return;
+        }
+
+        // Categorize lots
+        const incomplete = [];
+        const partial = [];
+        const completed = [];
+
+        lots.forEach(lot => {
+            const lotItems = items ? items.filter(item => item.lot_id === lot.id) : [];
+            const totalItems = lotItems.length;
+            const checkedItems = items ? lotItems.filter(item => item.checked === true).length : 0;
+            
+            const lotData = {
+                lot,
+                totalItems,
+                checkedItems,
+                percentage: totalItems > 0 ? (checkedItems / totalItems * 100) : 0
+            };
+
+            if (checkedItems === 0) {
+                incomplete.push(lotData);
+            } else if (checkedItems === totalItems && totalItems > 0) {
+                completed.push(lotData);
+            } else {
+                partial.push(lotData);
+            }
+        });
+
+        // Sort each category by lot name (case-insensitive, ascending)
+        const sortByLotName = (a, b) => {
+            return a.lot.lot_name.toLowerCase().localeCompare(b.lot.lot_name.toLowerCase());
+        };
+        
+        partial.sort(sortByLotName);
+        incomplete.sort(sortByLotName);
+        completed.sort(sortByLotName);
+
+        // Store data globally for sorting
+        window.checklistData = {
+            partial: partial,
+            incomplete: incomplete,
+            completed: completed
+        };
+        window.checklistSortState = {
+            partial: { column: 'lot_name', direction: 'asc' },
+            incomplete: { column: 'lot_name', direction: 'asc' },
+            completed: { column: 'lot_name', direction: 'asc' }
+        };
+
+        // Render sections (Partial at top, then Incomplete, then Completed)
+        renderChecklistSection(container, 'Partial', partial, 'partial', true);
+        renderChecklistSection(container, 'Incomplete', incomplete, 'incomplete', true);
+        renderChecklistSection(container, 'Completed', completed, 'completed', false);
+        
+        // Update sort indicators
+        updateChecklistSortIndicators('partial', 'lot_name', 'asc');
+        updateChecklistSortIndicators('incomplete', 'lot_name', 'asc');
+        updateChecklistSortIndicators('completed', 'lot_name', 'asc');
+
+    } catch (error) {
+        console.error('Error loading checklist:', error);
+        alert('Failed to load checklist data: ' + error.message);
+    }
+}
+
+function renderChecklistSection(container, title, lots, sectionId, isOpen) {
+    if (lots.length === 0) return; // Don't render empty sections
+
+    const section = document.createElement('div');
+    section.className = 'checklist-section';
+    
+    const header = document.createElement('div');
+    header.className = 'checklist-section-header';
+    header.onclick = () => toggleChecklistSection(sectionId);
+    header.innerHTML = `
+        <div class="section-title">
+            <span class="section-icon" id="icon-${sectionId}">${isOpen ? '▼' : '▶'}</span>
+            <strong>${title}</strong>
+            <span class="section-count">(${lots.length})</span>
+        </div>
+    `;
+    
+    const content = document.createElement('div');
+    content.id = `section-${sectionId}`;
+    content.className = `checklist-section-content ${isOpen ? 'open' : ''}`;
+    
+    const table = document.createElement('table');
+    table.className = 'users-table';
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th class="sortable" onclick="sortChecklistSection('${sectionId}', 'lot_name')">
+                    Lot Name <span class="sort-indicator" id="sort-${sectionId}-lot_name">↕</span>
+                </th>
+                <th class="sortable" onclick="sortChecklistSection('${sectionId}', 'totalItems')">
+                    Total Items <span class="sort-indicator" id="sort-${sectionId}-totalItems">↕</span>
+                </th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="tbody-${sectionId}"></tbody>
+    `;
+    
+    const tbody = table.querySelector('tbody');
+    
+    lots.forEach(lotData => {
+        const tr = document.createElement('tr');
+        tr.className = 'clickable-row';
+        tr.onclick = () => openChecklistView(lotData.lot.id, lotData.lot.lot_name);
+        tr.innerHTML = `
+            <td><strong>${lotData.lot.lot_name}</strong></td>
+            <td>${lotData.totalItems}</td>
+            <td>
+                <span class="checklist-badge ${lotData.percentage === 100 ? 'checked' : 'unchecked'}">
+                    ${lotData.percentage === 100 ? 'Checked' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
+                </span>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    content.appendChild(table);
+    section.appendChild(header);
+    section.appendChild(content);
+    container.appendChild(section);
+}
+
+function toggleChecklistSection(sectionId) {
+    const content = document.getElementById(`section-${sectionId}`);
+    const icon = document.getElementById(`icon-${sectionId}`);
+    
+    if (content.classList.contains('open')) {
+        content.classList.remove('open');
+        icon.textContent = '▶';
+    } else {
+        content.classList.add('open');
+        icon.textContent = '▼';
+    }
+}
+
+function sortChecklistSection(sectionId, column) {
+    if (!window.checklistData || !window.checklistData[sectionId]) return;
+    
+    const currentState = window.checklistSortState[sectionId];
+    let direction = 'asc';
+    
+    // Toggle direction if clicking the same column
+    if (currentState.column === column) {
+        direction = currentState.direction === 'asc' ? 'desc' : 'asc';
+    }
+    
+    // Update sort state
+    window.checklistSortState[sectionId] = { column, direction };
+    
+    // Sort the data
+    const lots = window.checklistData[sectionId];
+    lots.sort((a, b) => {
+        let aVal, bVal;
+        
+        if (column === 'lot_name') {
+            aVal = a.lot.lot_name.toLowerCase();
+            bVal = b.lot.lot_name.toLowerCase();
+            const result = aVal.localeCompare(bVal);
+            return direction === 'asc' ? result : -result;
+        } else if (column === 'totalItems') {
+            aVal = a.totalItems;
+            bVal = b.totalItems;
+            return direction === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        
+        return 0;
+    });
+    
+    // Re-render the table body for this section
+    const tbody = document.getElementById(`tbody-${sectionId}`);
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    lots.forEach(lotData => {
+        const tr = document.createElement('tr');
+        tr.className = 'clickable-row';
+        tr.onclick = () => openChecklistView(lotData.lot.id, lotData.lot.lot_name);
+        tr.innerHTML = `
+            <td><strong>${lotData.lot.lot_name}</strong></td>
+            <td>${lotData.totalItems}</td>
+            <td>
+                <span class="checklist-badge ${lotData.percentage === 100 ? 'checked' : 'unchecked'}">
+                    ${lotData.percentage === 100 ? 'Checked' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
+                </span>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    // Update sort indicators
+    updateChecklistSortIndicators(sectionId, column, direction);
+}
+
+function updateChecklistSortIndicators(sectionId, activeColumn, direction) {
+    // Reset all indicators for this section
+    ['lot_name', 'totalItems'].forEach(col => {
+        const indicator = document.getElementById(`sort-${sectionId}-${col}`);
+        if (indicator) {
+            const header = indicator.closest('th');
+            if (col === activeColumn) {
+                indicator.textContent = direction === 'asc' ? '↑' : '↓';
+                if (header) header.classList.add('sort-active');
+            } else {
+                indicator.textContent = '↕';
+                if (header) header.classList.remove('sort-active');
+            }
+        }
+    });
+}
+
+function openChecklistView(lotId, lotName) {
+    window.location.href = `checklist_view.html?lot_id=${lotId}&lot_name=${encodeURIComponent(lotName)}`;
+}
+
 // Logout function
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
@@ -373,14 +692,14 @@ function logout() {
 // Toggle password visibility
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
-    const button = event.target;
+    const toggleSpan = document.getElementById(inputId + 'Toggle');
     
     if (input.type === 'password') {
         input.type = 'text';
-        button.textContent = '🙈';
+        toggleSpan.textContent = 'Hide';
     } else {
         input.type = 'password';
-        button.textContent = '🫣';
+        toggleSpan.textContent = 'Show';
     }
 }
 
@@ -396,4 +715,431 @@ window.onclick = function(event) {
         closeEditUserModal();
     }
 };
+
+// ============================================
+// STATS FUNCTIONALITY
+// ============================================
+
+// Load all stats data
+async function loadStats() {
+    await Promise.all([
+        loadLotStats(),
+        loadPersonStats()
+    ]);
+}
+
+// Load lot-wise statistics
+async function loadLotStats() {
+    try {
+        // Get all items with lot information
+        const { data: items, error: itemsError } = await supabaseClient
+            .from('items')
+            .select('*, lots(id, lot_name)');
+
+        if (itemsError) throw itemsError;
+
+        // Filter out cancelled items
+        const activeItems = items ? items.filter(item => !item.cancelled) : [];
+
+        // Get all user lot statuses
+        const { data: lotStatuses, error: lotError } = await supabaseClient
+            .from('user_lot_status')
+            .select('*');
+
+        if (lotError) throw lotError;
+
+        // Create a map for user lot statuses
+        const statusMap = {};
+        (lotStatuses || []).forEach(status => {
+            const key = `${status.lot_id}_${status.username}`;
+            statusMap[key] = status;
+        });
+
+        // Group items by lot
+        const lotData = {};
+        const uniqueParticipants = new Set();
+
+        activeItems.forEach(item => {
+            const lotName = item.lots?.lot_name || 'Unknown';
+            const lotId = item.lots?.id || 'unknown';
+            
+            if (!lotData[lotName]) {
+                lotData[lotName] = {
+                    name: lotName,
+                    lotId: lotId,
+                    participants: new Set(),
+                    totalItems: 0,
+                    deliveredUsers: new Set(),
+                    totalPrice: 0,
+                    paidUsers: new Set()
+                };
+            }
+
+            lotData[lotName].participants.add(item.username);
+            lotData[lotName].totalItems++;
+            uniqueParticipants.add(item.username);
+            
+            const price = parseFloat(item.price) || 0;
+            lotData[lotName].totalPrice += price;
+
+            // Check delivery and payment status for this user-lot combination
+            const statusKey = `${lotId}_${item.username}`;
+            const userStatus = statusMap[statusKey];
+            
+            if (userStatus) {
+                if (userStatus.delivery_status === 'Delivered') {
+                    lotData[lotName].deliveredUsers.add(item.username);
+                }
+                if (userStatus.payment_status === 'Paid') {
+                    lotData[lotName].paidUsers.add(item.username);
+                }
+            }
+        });
+
+        // Calculate totals
+        let totalRevenue = 0;
+        let totalPending = 0;
+
+        Object.values(lotData).forEach(lot => {
+            // Rough estimate: revenue is based on paid users percentage
+            const paidPercentage = lot.participants.size > 0 ? lot.paidUsers.size / lot.participants.size : 0;
+            const revenue = lot.totalPrice * paidPercentage;
+            const pending = lot.totalPrice - revenue;
+            
+            lot.revenue = revenue;
+            lot.pending = pending;
+            
+            totalRevenue += revenue;
+            totalPending += pending;
+        });
+
+        // Update summary cards
+        document.getElementById('totalLots').textContent = Object.keys(lotData).length;
+        document.getElementById('totalParticipants').textContent = uniqueParticipants.size;
+        document.getElementById('totalRevenue').textContent = `₹${totalRevenue.toFixed(2)}`;
+        document.getElementById('pendingAmount').textContent = `₹${totalPending.toFixed(2)}`;
+
+        // Store lot stats data for sorting
+        lotStatsData = Object.values(lotData).map(lot => ({
+            name: lot.name,
+            participants: lot.participants.size,
+            items: lot.totalItems,
+            delivered: lot.deliveredUsers.size,
+            deliveredTotal: lot.participants.size,
+            paid: lot.paidUsers.size,
+            paidTotal: lot.participants.size,
+            revenue: lot.revenue,
+            pending: lot.pending
+        }));
+
+        // Initialize sort and display
+        currentLotSortColumn = 'name';
+        currentLotSortDirection = 'asc';
+        sortLotTable('name');
+
+    } catch (error) {
+        console.error('Error loading lot stats:', error);
+        alert('Failed to load lot statistics: ' + error.message);
+    }
+}
+
+// Display lot stats data
+function displayLotStats(lots) {
+    const tbody = document.getElementById('lotStatsTableBody');
+    tbody.innerHTML = '';
+
+    if (!lots || lots.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #666;">No lot data available</td></tr>';
+        return;
+    }
+
+    lots.forEach(lot => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${lot.name}</strong></td>
+            <td>${lot.participants}</td>
+            <td>${lot.items}</td>
+            <td>${lot.delivered} / ${lot.deliveredTotal} users</td>
+            <td>${lot.paid} / ${lot.paidTotal} users</td>
+            <td>₹${lot.revenue.toFixed(2)}</td>
+            <td>₹${lot.pending.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Sort lot stats table
+function sortLotTable(column) {
+    // Toggle sort direction if clicking the same column
+    if (currentLotSortColumn === column) {
+        currentLotSortDirection = currentLotSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentLotSortColumn = column;
+        currentLotSortDirection = column === 'name' ? 'asc' : 'desc'; // Default desc for numbers, asc for name
+    }
+    
+    let sortedData = [...lotStatsData];
+    
+    switch (column) {
+        case 'name':
+            sortedData.sort((a, b) => {
+                const comparison = a.name.localeCompare(b.name);
+                return currentLotSortDirection === 'asc' ? comparison : -comparison;
+            });
+            break;
+        case 'participants':
+            sortedData.sort((a, b) => {
+                return currentLotSortDirection === 'asc' ? a.participants - b.participants : b.participants - a.participants;
+            });
+            break;
+        case 'items':
+            sortedData.sort((a, b) => {
+                return currentLotSortDirection === 'asc' ? a.items - b.items : b.items - a.items;
+            });
+            break;
+        case 'delivered':
+            sortedData.sort((a, b) => {
+                return currentLotSortDirection === 'asc' ? a.delivered - b.delivered : b.delivered - a.delivered;
+            });
+            break;
+        case 'paid':
+            sortedData.sort((a, b) => {
+                return currentLotSortDirection === 'asc' ? a.paid - b.paid : b.paid - a.paid;
+            });
+            break;
+        case 'revenue':
+            sortedData.sort((a, b) => {
+                return currentLotSortDirection === 'asc' ? a.revenue - b.revenue : b.revenue - a.revenue;
+            });
+            break;
+        case 'pending':
+            sortedData.sort((a, b) => {
+                return currentLotSortDirection === 'asc' ? a.pending - b.pending : b.pending - a.pending;
+            });
+            break;
+    }
+    
+    updateLotSortIndicators(column, currentLotSortDirection);
+    displayLotStats(sortedData);
+}
+
+// Update lot sort indicators
+function updateLotSortIndicators(activeColumn, direction) {
+    // Reset all indicators
+    ['name', 'participants', 'items', 'delivered', 'paid', 'revenue', 'pending'].forEach(col => {
+        const indicator = document.getElementById(`sort-lot-${col}`);
+        const th = indicator?.parentElement;
+        if (indicator) {
+            if (col === activeColumn) {
+                indicator.textContent = direction === 'asc' ? '↑' : '↓';
+                indicator.style.opacity = '1';
+                if (th) th.classList.add('active');
+            } else {
+                indicator.textContent = '↕';
+                indicator.style.opacity = '0.5';
+                if (th) th.classList.remove('active');
+            }
+        }
+    });
+}
+
+// Load person-wise statistics
+async function loadPersonStats() {
+    try {
+        // Get all items with lot information
+        const { data: items, error: itemsError } = await supabaseClient
+            .from('items')
+            .select('*, lots(id, lot_name)');
+
+        if (itemsError) throw itemsError;
+
+        // Filter out cancelled items
+        const activeItems = items ? items.filter(item => !item.cancelled) : [];
+
+        // Get all user lot statuses
+        const { data: lotStatuses, error: statusError } = await supabaseClient
+            .from('user_lot_status')
+            .select('*');
+
+        if (statusError) throw statusError;
+
+        // Create a map for user lot statuses
+        const statusMap = {};
+        (lotStatuses || []).forEach(status => {
+            const key = `${status.lot_id}_${status.username}`;
+            statusMap[key] = status;
+        });
+
+        // Group items by user
+        const userData = {};
+        let totalPaid = 0;
+        let totalPending = 0;
+        let totalFigs = 0;
+
+        activeItems.forEach(item => {
+            const username = item.username || 'Unknown';
+            const lotName = item.lots?.lot_name || 'Unknown';
+            const lotId = item.lots?.id;
+            
+            if (!userData[username]) {
+                userData[username] = {
+                    username: username,
+                    lots: new Set(),
+                    totalItems: 0,
+                    totalPrice: 0,
+                    paidLots: new Set()
+                };
+            }
+
+            userData[username].lots.add(lotName);
+            userData[username].totalItems++;
+            
+            const price = parseFloat(item.price) || 0;
+            userData[username].totalPrice += price;
+
+            // Check if user has paid for this lot
+            const statusKey = `${lotId}_${username}`;
+            const userStatus = statusMap[statusKey];
+            
+            if (userStatus && userStatus.payment_status === 'Paid') {
+                userData[username].paidLots.add(lotId);
+            }
+        });
+
+        // Calculate paid and pending amounts
+        Object.values(userData).forEach(user => {
+            const paidPercentage = user.lots.size > 0 ? user.paidLots.size / user.lots.size : 0;
+            user.paid = user.totalPrice * paidPercentage;
+            user.pending = user.totalPrice - user.paid;
+            
+            totalPaid += user.paid;
+            totalPending += user.pending;
+        });
+
+        // Figs collected is same as total items
+        totalFigs = activeItems.length;
+
+        // Update summary cards
+        document.getElementById('totalUsers').textContent = Object.keys(userData).length;
+        document.getElementById('totalPaid').textContent = `₹${totalPaid.toFixed(2)}`;
+        document.getElementById('totalPending').textContent = `₹${totalPending.toFixed(2)}`;
+        document.getElementById('totalFigs').textContent = totalFigs;
+
+        // Store data for sorting
+        personStatsData = Object.values(userData).map(user => ({
+            ...user,
+            figs: user.totalItems // Figs = Total Items
+        }));
+
+        // Reset sort to default
+        currentSortColumn = 'username';
+        currentSortDirection = 'asc';
+        
+        // Display with default sort
+        sortPersonTable('username');
+
+    } catch (error) {
+        console.error('Error loading person stats:', error);
+        alert('Failed to load person statistics: ' + error.message);
+    }
+}
+
+// Display person stats table
+function displayPersonStats(users) {
+    const tbody = document.getElementById('personStatsTableBody');
+    tbody.innerHTML = '';
+
+    if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #666;">No user data available</td></tr>';
+        return;
+    }
+
+    users.forEach(user => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <a href="person_view.html?username=${user.username}" style="color: var(--text-primary); text-decoration: none; font-weight: 600;">
+                    ${user.username}
+                </a>
+            </td>
+            <td>${user.lots.size}</td>
+            <td>₹${user.paid.toFixed(2)}</td>
+            <td>₹${user.pending.toFixed(2)}</td>
+            <td>${user.figs}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Sort person stats table
+function sortPersonTable(column) {
+    // If clicking the same column, toggle direction
+    if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = column === 'username' ? 'asc' : 'desc'; // Default desc for numbers, asc for username
+    }
+    
+    let sortedData = [...personStatsData];
+    
+    // Sort based on column
+    switch(column) {
+        case 'username':
+            sortedData.sort((a, b) => {
+                const comparison = a.username.localeCompare(b.username);
+                return currentSortDirection === 'asc' ? comparison : -comparison;
+            });
+            break;
+        case 'lots':
+            sortedData.sort((a, b) => {
+                const comparison = a.lots.size - b.lots.size;
+                return currentSortDirection === 'asc' ? comparison : -comparison;
+            });
+            break;
+        case 'paid':
+            sortedData.sort((a, b) => {
+                const comparison = a.paid - b.paid;
+                return currentSortDirection === 'asc' ? comparison : -comparison;
+            });
+            break;
+        case 'pending':
+            sortedData.sort((a, b) => {
+                const comparison = a.pending - b.pending;
+                return currentSortDirection === 'asc' ? comparison : -comparison;
+            });
+            break;
+        case 'figs':
+            sortedData.sort((a, b) => {
+                const comparison = a.figs - b.figs;
+                return currentSortDirection === 'asc' ? comparison : -comparison;
+            });
+            break;
+    }
+    
+    // Update sort indicators
+    updateSortIndicators(column, currentSortDirection);
+    
+    displayPersonStats(sortedData);
+}
+
+// Update visual sort indicators for person stats
+function updateSortIndicators(activeColumn, direction) {
+    // Reset all person stat indicators
+    ['username', 'lots', 'paid', 'pending', 'figs'].forEach(col => {
+        const indicator = document.getElementById(`sort-${col}`);
+        const th = indicator?.parentElement;
+        if (indicator) {
+            if (col === activeColumn) {
+                indicator.textContent = direction === 'asc' ? '↑' : '↓';
+                indicator.style.opacity = '1';
+                if (th) th.classList.add('active');
+            } else {
+                indicator.textContent = '↕';
+                indicator.style.opacity = '0.5';
+                if (th) th.classList.remove('active');
+            }
+        }
+    });
+}
 

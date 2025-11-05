@@ -9,6 +9,7 @@ let currentFilters = {
     status: 'all',
     paymentStatus: 'all'
 };
+let zoomLevel = 100; // Default zoom level (80% of original = new 100%)
 
 // Check authentication on page load
 window.addEventListener('DOMContentLoaded', () => {
@@ -29,6 +30,20 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
     
+    // Show/hide login/logout buttons based on guest status
+    if (currentUser.id === 'guest') {
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('loginBtn').style.display = 'inline-block';
+    } else {
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('loginBtn').style.display = 'none';
+    }
+    
+    // Show admin panel button in header for admin only
+    if (currentUser.access_level.toLowerCase() === 'admin') {
+        document.getElementById('adminPanelHeaderBtn').style.display = 'inline-block';
+    }
+    
     // Get username from URL parameter or use current user
     const urlParams = new URLSearchParams(window.location.search);
     const usernameParam = urlParams.get('username');
@@ -43,6 +58,10 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('personTitle').textContent = 
         targetUsername === currentUser.username ? 'My Items' : `${targetUsername}'s Items`;
     document.getElementById('displayUsername').textContent = targetUsername;
+    
+    // Apply initial zoom
+    applyZoom();
+    updateZoomSlider();
     
     loadUserItems();
 });
@@ -354,7 +373,7 @@ async function generatePersonViewPNG() {
     const button = event.target;
     
     button.disabled = true;
-    button.textContent = '⏳ Generating...';
+    button.textContent = 'Generating...';
     
     // Hide the generate PNG button temporarily
     button.style.display = 'none';
@@ -442,7 +461,7 @@ async function generatePersonViewPNG() {
             URL.revokeObjectURL(url);
             
             button.disabled = false;
-            button.textContent = '📸 Generate PNG';
+            button.textContent = 'Generate PNG';
         });
     } catch (error) {
         console.error('Error generating PNG:', error);
@@ -461,6 +480,47 @@ async function generatePersonViewPNG() {
         button.disabled = false;
         button.textContent = '📸 Generate PNG';
     }
+}
+
+// Zoom control functions
+function setZoomLevel(zoom) {
+    zoomLevel = parseInt(zoom);
+    applyZoom();
+    document.getElementById('zoomLevel').textContent = zoomLevel + '%';
+}
+
+function increaseZoom() {
+    zoomLevel = Math.min(150, zoomLevel + 10);
+    applyZoom();
+    updateZoomSlider();
+}
+
+function decreaseZoom() {
+    zoomLevel = Math.max(50, zoomLevel - 10);
+    applyZoom();
+    updateZoomSlider();
+}
+
+function resetZoom() {
+    zoomLevel = 100;
+    applyZoom();
+    updateZoomSlider();
+}
+
+function applyZoom() {
+    const container = document.getElementById('lotsContainer');
+    if (container) {
+        // 100% zoom = 80% of original size (0.8 scale factor)
+        const scaleFactor = (zoomLevel * 0.8) / 100;
+        container.style.transform = `scale(${scaleFactor})`;
+        container.style.transformOrigin = 'top left';
+        container.style.width = `${100 / scaleFactor}%`;
+    }
+}
+
+function updateZoomSlider() {
+    document.getElementById('zoomSlider').value = zoomLevel;
+    document.getElementById('zoomLevel').textContent = zoomLevel + '%';
 }
 
 // Logout function
