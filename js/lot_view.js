@@ -42,6 +42,20 @@ window.addEventListener('DOMContentLoaded', () => {
             window.location.href = 'person_view.html';
         };
     }
+    
+    // Show/hide login/logout buttons based on guest status
+    if (user.id === 'guest') {
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('loginBtn').style.display = 'inline-block';
+    } else {
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('loginBtn').style.display = 'none';
+    }
+    
+    // Show admin panel button in header for admin only
+    if (user.access_level.toLowerCase() === 'admin') {
+        document.getElementById('adminPanelHeaderBtn').style.display = 'inline-block';
+    }
 
     const lotInfo = getLotInfo();
     if (!lotInfo.id) {
@@ -59,6 +73,11 @@ window.addEventListener('DOMContentLoaded', () => {
     // Show add button only for admin/manager
     if (hasPermission('add')) {
         document.getElementById('addNewBtn').style.display = 'inline-block';
+    }
+    
+    // Show lock button only for admin
+    if (user.access_level.toLowerCase() === 'admin') {
+        document.getElementById('lockBtn').style.display = 'inline-block';
     }
 
     loadLotDropdown(); // Load dropdown for switching lots
@@ -80,6 +99,23 @@ async function loadLotItems() {
         
         // Update current lot with full data
         currentLot = { ...currentLot, ...lotData };
+        
+        // Update lock button state
+        updateLockButton();
+        
+        // Update Add New button state based on lock
+        const addNewBtn = document.getElementById('addNewBtn');
+        if (addNewBtn && hasPermission('add')) {
+            if (currentLot.locked) {
+                addNewBtn.disabled = true;
+                addNewBtn.style.opacity = '0.5';
+                addNewBtn.style.cursor = 'not-allowed';
+            } else {
+                addNewBtn.disabled = false;
+                addNewBtn.style.opacity = '1';
+                addNewBtn.style.cursor = 'pointer';
+            }
+        }
         
         // Update lot title with creation date
         const createdDate = new Date(currentLot.created_at).toLocaleDateString('en-US', {
@@ -210,14 +246,15 @@ function renderGallery() {
             
             // Add three-dot menu for admin/manager
             if (hasPermission('edit')) {
+                const isLocked = isLotLocked();
                 const menuContainer = document.createElement('div');
                 menuContainer.className = 'item-menu';
                 menuContainer.innerHTML = `
                     <button class="item-menu-btn" onclick="toggleItemMenu(event, '${item.id}')">⋮</button>
                     <div class="item-menu-dropdown" id="item-menu-${item.id}">
-                        <button onclick="openPassModal('${item.id}', event)">Pass</button>
-                        <button onclick="toggleCancelItem('${item.id}', event)">${item.cancelled ? 'Restore' : 'Cancel'}</button>
-                        <button class="delete-menu-item" onclick="deleteItem('${item.id}', event)">Delete</button>
+                        <button onclick="openPassModal('${item.id}', event)" ${isLocked ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>Pass</button>
+                        <button onclick="toggleCancelItem('${item.id}', event)" ${isLocked ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>${item.cancelled ? 'Restore' : 'Cancel'}</button>
+                        <button class="delete-menu-item" onclick="deleteItem('${item.id}', event)" ${isLocked ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>Delete</button>
                     </div>
                 `;
                 imgContainer.appendChild(menuContainer);
@@ -304,26 +341,30 @@ async function updateItemPrice(itemId, priceElement) {
 
 // Size control functions
 function updateSizes() {
-    document.documentElement.style.setProperty('--image-size', imageSize + 'px');
-    document.documentElement.style.setProperty('--price-size', priceSize + 'em');
-    document.documentElement.style.setProperty('--label-size', labelSize + 'em');
-    document.documentElement.style.setProperty('--total-size', totalSize + 'em');
+    // 100% zoom = 80% of original size (0.8 scale factor)
+    const scaleFactor = 0.8;
+    document.documentElement.style.setProperty('--image-size', (imageSize * scaleFactor) + 'px');
+    document.documentElement.style.setProperty('--price-size', (priceSize * scaleFactor) + 'em');
+    document.documentElement.style.setProperty('--label-size', (labelSize * scaleFactor) + 'em');
+    document.documentElement.style.setProperty('--total-size', (totalSize * scaleFactor) + 'em');
 }
 
 function decreaseSize() {
-    imageSize = Math.max(60, imageSize - 20); // Allow smaller minimum
-    priceSize = Math.max(0.6, priceSize - 0.2);
-    labelSize = Math.max(0.6, labelSize - 0.15);
-    totalSize = Math.max(0.6, totalSize - 0.15);
+    imageSize = Math.max(50, imageSize - 10); // Allow smaller minimum
+    priceSize = (imageSize / 100) * 1.0;
+    labelSize = (imageSize / 100) * 0.9;
+    totalSize = (imageSize / 100) * 0.9;
     updateSizes();
+    updateZoomSlider();
 }
 
 function increaseSize() {
-    imageSize = Math.min(300, imageSize + 20);
-    priceSize = Math.min(3.0, priceSize + 0.2);
-    labelSize = Math.min(2.5, labelSize + 0.15);
-    totalSize = Math.min(2.5, totalSize + 0.15);
+    imageSize = Math.min(150, imageSize + 10);
+    priceSize = (imageSize / 100) * 1.0;
+    labelSize = (imageSize / 100) * 0.9;
+    totalSize = (imageSize / 100) * 0.9;
     updateSizes();
+    updateZoomSlider();
 }
 
 function resetSize() {
@@ -332,6 +373,24 @@ function resetSize() {
     labelSize = 0.9; // 4 steps decreased from 1.5
     totalSize = 0.9; // 4 steps decreased from 1.5
     updateSizes();
+    updateZoomSlider();
+}
+
+function setZoomLevel(zoomPercent) {
+    const zoom = parseInt(zoomPercent);
+    // Map zoom percentage (50-250) to image size (50-250)
+    imageSize = zoom;
+    priceSize = (zoom / 100) * 1.0;
+    labelSize = (zoom / 100) * 0.9;
+    totalSize = (zoom / 100) * 0.9;
+    updateSizes();
+    document.getElementById('zoomLevel').textContent = zoom + '%';
+}
+
+function updateZoomSlider() {
+    const zoomPercent = imageSize;
+    document.getElementById('zoomSlider').value = zoomPercent;
+    document.getElementById('zoomLevel').textContent = zoomPercent + '%';
 }
 
 // Generate PNG with cropped images
@@ -340,7 +399,7 @@ async function generatePNG() {
     const button = event.target;
     
     button.disabled = true;
-    button.textContent = '⏳ Generating...';
+    button.textContent = 'Generating...';
     
     // Get all images
     const allImages = gallery.querySelectorAll('.item-image');
@@ -422,7 +481,7 @@ async function generatePNG() {
             URL.revokeObjectURL(url);
             
             button.disabled = false;
-            button.textContent = '📸 Generate PNG';
+            button.textContent = 'Generate PNG';
         });
     } catch (error) {
         console.error('Error generating PNG:', error);
@@ -442,6 +501,11 @@ async function generatePNG() {
 
 // Modal functions
 function openAddModal(prefilledUsername = '') {
+    if (isLotLocked()) {
+        alert('This lot is locked. Please unlock it first to add items.');
+        return;
+    }
+    
     document.getElementById('addModal').style.display = 'block';
     updateUsernameDropdown();
     
@@ -498,6 +562,33 @@ async function updateUsernameDropdown() {
             datalist.appendChild(option);
         });
     }
+}
+
+// Handle file upload
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Update file name display
+    document.getElementById('fileName').textContent = file.name;
+    
+    // Check if it's an image
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        event.target.value = '';
+        document.getElementById('fileName').textContent = 'No file selected';
+        return;
+    }
+    
+    // Read the file and convert to base64
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        pastedImage = e.target.result;
+        // Update the paste area to show the uploaded image
+        const pasteArea = document.getElementById('pasteArea');
+        pasteArea.innerHTML = `<img src="${pastedImage}" alt="Uploaded image" style="max-width: 100%; max-height: 200px; object-fit: contain;">`;
+    };
+    reader.readAsDataURL(file);
 }
 
 // Setup paste area
@@ -752,6 +843,11 @@ let currentPassItemId = null;
 async function openPassModal(itemId, event) {
     event.stopPropagation();
     
+    if (isLotLocked()) {
+        alert('This lot is locked. Please unlock it first to pass items.');
+        return;
+    }
+    
     // Close the menu
     const allMenus = document.querySelectorAll('.item-menu-dropdown');
     allMenus.forEach(m => m.classList.remove('show'));
@@ -850,6 +946,11 @@ async function passItem() {
 async function toggleCancelItem(itemId, event) {
     event.stopPropagation();
     
+    if (isLotLocked()) {
+        alert('This lot is locked. Please unlock it first to cancel/restore items.');
+        return;
+    }
+    
     // Close the menu
     const allMenus = document.querySelectorAll('.item-menu-dropdown');
     allMenus.forEach(m => m.classList.remove('show'));
@@ -887,6 +988,11 @@ async function toggleCancelItem(itemId, event) {
 async function deleteItem(itemId, event) {
     event.stopPropagation();
     
+    if (isLotLocked()) {
+        alert('This lot is locked. Please unlock it first to delete items.');
+        return;
+    }
+    
     // Close the menu
     const allMenus = document.querySelectorAll('.item-menu-dropdown');
     allMenus.forEach(m => m.classList.remove('show'));
@@ -915,9 +1021,14 @@ async function loadLotDropdown() {
     try {
         const { data: lots, error } = await supabaseClient
             .from('lots')
-            .select('*');
+            .select('*')
+            .order('created_at', { ascending: true });
         
         if (error) throw error;
+        
+        if (!lots || lots.length === 0) {
+            return;
+        }
         
         // Sort lots numerically by extracting number from lot_name
         const sortedLots = lots.sort((a, b) => {
@@ -933,7 +1044,8 @@ async function loadLotDropdown() {
             const option = document.createElement('option');
             option.value = lot.id;
             option.textContent = lot.lot_name;
-            if (lot.id === currentLot.id) {
+            // Use string comparison to handle both string and number IDs
+            if (String(lot.id) === String(currentLot.id)) {
                 option.selected = true;
             }
             dropdown.appendChild(option);
@@ -986,6 +1098,54 @@ async function editLotDate() {
         console.error('Error updating lot date:', error);
         alert('Failed to update lot date: ' + error.message);
     }
+}
+
+// Lock/Unlock functions
+async function toggleLock() {
+    if (!currentLot) return;
+    
+    const newLockedState = !currentLot.locked;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('lots')
+            .update({ locked: newLockedState })
+            .eq('id', currentLot.id);
+        
+        if (error) throw error;
+        
+        currentLot.locked = newLockedState;
+        updateLockButton();
+        
+        // Reload items to update button states
+        loadLotItems();
+    } catch (error) {
+        console.error('Error toggling lock:', error);
+        alert('Failed to toggle lock: ' + error.message);
+    }
+}
+
+function updateLockButton() {
+    const lockBtn = document.getElementById('lockBtn');
+    const lockIcon = document.getElementById('lockIcon');
+    
+    if (!lockBtn || !lockIcon) return;
+    
+    if (currentLot.locked) {
+        lockBtn.classList.add('locked');
+        lockIcon.src = 'https://res.cloudinary.com/daye1yfzy/image/upload/v1762317006/lock-solid-full_uhekbc.svg';
+        lockIcon.alt = 'Locked';
+        lockBtn.title = 'Unlock Lot';
+    } else {
+        lockBtn.classList.remove('locked');
+        lockIcon.src = 'https://res.cloudinary.com/daye1yfzy/image/upload/v1762317008/lock-open-solid-full_bh6f8q.svg';
+        lockIcon.alt = 'Unlocked';
+        lockBtn.title = 'Lock Lot';
+    }
+}
+
+function isLotLocked() {
+    return currentLot && currentLot.locked === true;
 }
 
 // Logout function

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Collection Manager</title>
+    <title>Home - Collection Manager</title>
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/dashboard.css">
 </head>
@@ -14,8 +14,10 @@
                 <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
             </div>
             <div class="header-actions">
+                <button class="header-btn" id="adminPanelHeaderBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">Admin Panel</button>
                 <span class="user-name" id="userName"></span>
-                <button onclick="logout()" class="header-btn">Logout</button>
+                <button onclick="logout()" class="header-btn" id="logoutBtn">Logout</button>
+                <button onclick="window.location.href='index.html'" class="header-btn" id="loginBtn" style="display:none;">Login</button>
             </div>
         </div>
     </div>
@@ -23,7 +25,7 @@
     <div class="breadcrumb-container">
         <div class="breadcrumb-content">
             <nav class="breadcrumb">
-                <span class="breadcrumb-current">Dashboard</span>
+                <span class="breadcrumb-current">Home</span>
             </nav>
         </div>
     </div>
@@ -32,12 +34,9 @@
         <div class="dashboard-header">
             <h2 class="dashboard-title">All Lots</h2>
             <div class="header-actions">
-                <button class="create-lot-btn" id="adminPanelBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">
-                    ⚙️ Admin Panel
-                </button>
-                <button class="create-lot-btn" id="createLotBtn" onclick="openCreateModal()" style="display:none;">
-                    ➕ Create New Lot
-                </button>
+                <select id="monthFilter" onchange="filterLotsByMonth()" style="display:none;">
+                    <option value="all">All Months</option>
+                </select>
             </div>
         </div>
 
@@ -49,7 +48,10 @@
     <!-- Create Lot Modal -->
     <div id="createLotModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">Create New Lot</div>
+            <div class="modal-header">
+                <h2>Create New Lot</h2>
+                <button class="close" onclick="closeCreateModal()">&times;</button>
+            </div>
             <form id="createLotForm">
                 <div class="form-group">
                     <label>Lot Name:</label>
@@ -58,14 +60,6 @@
                 <div class="form-group">
                     <label>Description (optional):</label>
                     <textarea id="lotDescription" rows="3" placeholder="Enter description"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Status:</label>
-                    <select id="lotStatus" required>
-                        <option value="Going on">Going on</option>
-                        <option value="Yet to arrive">Yet to arrive</option>
-                        <option value="Arrived">Arrived</option>
-                    </select>
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" onclick="closeCreateModal()">Cancel</button>
@@ -78,7 +72,10 @@
     <!-- Rename Lot Modal -->
     <div id="renameLotModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">Rename Lot</div>
+            <div class="modal-header">
+                <h2>Rename Lot</h2>
+                <button class="close" onclick="closeRenameModal()">&times;</button>
+            </div>
             <form id="renameLotForm">
                 <input type="hidden" id="renameLotId">
                 <div class="form-group">

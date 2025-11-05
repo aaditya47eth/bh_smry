@@ -38,7 +38,7 @@ async function handleLogin(e) {
     
     const button = document.getElementById('loginButton');
     button.disabled = true;
-    button.textContent = '⏳ Logging in...';
+    button.textContent = 'Logging in...';
     
     try {
         // Find user by number (stored in 'number' column)
@@ -91,14 +91,14 @@ async function handleLogin(e) {
 // Toggle password visibility
 function togglePasswordVisibility() {
     const passwordInput = document.getElementById('password');
-    const toggleBtn = event.target;
+    const toggleIcon = document.getElementById('toggleIcon');
     
     if (passwordInput.type === 'password') {
         passwordInput.type = 'text';
-        toggleBtn.textContent = '🙈';
+        toggleIcon.textContent = 'Hide';
     } else {
         passwordInput.type = 'password';
-        toggleBtn.textContent = '🫣';
+        toggleIcon.textContent = 'Show';
     }
 }
 

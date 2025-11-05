@@ -12,7 +12,19 @@ WHERE username IS NULL OR username = '';
 -- Step 2: Add index for faster number lookups
 CREATE INDEX IF NOT EXISTS idx_users_number ON users(number);
 
--- Step 3: Verify the setup
+-- Step 3: Add checked column to items table for checklist feature
+ALTER TABLE items 
+ADD COLUMN IF NOT EXISTS checked BOOLEAN DEFAULT FALSE;
+
+-- Step 4: Add locked column to lots table for lock/unlock feature
+ALTER TABLE lots 
+ADD COLUMN IF NOT EXISTS locked BOOLEAN DEFAULT FALSE;
+
+-- Step 5: Add image_url column to items table if not exists
+ALTER TABLE items 
+ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+-- Step 6: Verify the setup
 SELECT 
     number as phone_number,
     username as display_name,

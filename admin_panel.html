@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - User Management</title>
+    <title>Admin Panel - Collector Management</title>
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/admin_panel.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -15,8 +15,10 @@
                 <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
             </div>
             <div class="header-actions">
+                <button class="header-btn" id="adminPanelHeaderBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">Admin Panel</button>
                 <span class="user-name" id="userName"></span>
-                <button onclick="logout()" class="header-btn">Logout</button>
+                <button onclick="logout()" class="header-btn" id="logoutBtn">Logout</button>
+                <button onclick="window.location.href='index.html'" class="header-btn" id="loginBtn" style="display:none;">Login</button>
             </div>
         </div>
     </div>
@@ -24,63 +26,232 @@
     <div class="breadcrumb-container">
         <div class="breadcrumb-content">
             <nav class="breadcrumb">
-                <a href="dashboard.html">Dashboard</a>
+                <a href="dashboard.html">Home</a>
                 <span class="breadcrumb-separator">/</span>
                 <span class="breadcrumb-current">Admin Panel</span>
             </nav>
         </div>
     </div>
     
-    <div class="container">
-
-        <div class="user-info">
-            Logged in as: <strong id="currentUserName"></strong> (<span id="currentUserRole"></span>)
-        </div>
-
-        <div class="controls">
-            <button onclick="openAddUserModal()" class="btn btn-primary">➕ Add New User</button>
-        </div>
-
-        <div class="users-container">
-            <h2>All Users</h2>
-            <div class="search-container" style="margin-bottom: 20px;">
-                <input type="text" id="searchInput" placeholder="Search by username or number..." style="padding: 10px; width: 300px; border-radius: 5px; border: 1px solid #ddd;" onkeyup="searchUsers()">
+    <div class="admin-layout">
+        <!-- Left Sidebar Menu -->
+        <aside class="sidebar">
+            <div class="sidebar-menu">
+                <div class="menu-item active" onclick="switchSection('users')">
+                    <span class="menu-icon">●</span>
+                    <span class="menu-text">Collector Management</span>
+                </div>
+                <div class="menu-item" onclick="switchSection('stats')">
+                    <span class="menu-icon">●</span>
+                    <span class="menu-text">Statistics</span>
+                </div>
+                <div class="menu-item" onclick="switchSection('checklist')">
+                    <span class="menu-icon">●</span>
+                    <span class="menu-text">Checklist</span>
+                </div>
             </div>
-            <table class="users-table">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Number</th>
-                        <th>Access Level</th>
-                        <th>Created At</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="usersTableBody">
-                    <!-- Users will be loaded here -->
-                </tbody>
-            </table>
-        </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Collector Management Section -->
+            <section id="usersSection" class="content-section active">
+                <div class="section-header">
+                    <h1>Collector Management</h1>
+                </div>
+
+                <div class="users-container">
+                    <div class="search-and-add">
+                        <input type="text" id="searchInput" placeholder="Search by collector or number..." onkeyup="searchUsers()">
+                        <button onclick="openAddUserModal()" class="btn btn-primary">+ Add New Collector</button>
+                    </div>
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Collector</th>
+                                <th>Number</th>
+                                <th>Access Level</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Stats Section -->
+            <section id="statsSection" class="content-section">
+                <div class="section-header">
+                    <h1>Statistics</h1>
+                </div>
+
+                <div class="tabs-container">
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchTab('lot')">Lot-wise Stats</button>
+                        <button class="tab-btn" onclick="switchTab('person')">Person-wise Stats</button>
+                    </div>
+
+                    <!-- Lot-wise Stats Tab -->
+                    <div id="lotTab" class="tab-content active">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Total Lots</div>
+                                    <div class="stat-value" id="totalLots">0</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Total Participants</div>
+                                    <div class="stat-value" id="totalParticipants">0</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Paid Amount</div>
+                                    <div class="stat-value" id="totalRevenue">₹0</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Pending Amount</div>
+                                    <div class="stat-value" id="pendingAmount">₹0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <h3>Lot Details</h3>
+                            <table class="stats-table sortable-table">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" onclick="sortLotTable('name')">
+                                            Lot Name <span class="sort-indicator" id="sort-lot-name">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortLotTable('participants')">
+                                            Participants <span class="sort-indicator" id="sort-lot-participants">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortLotTable('items')">
+                                            Total Items <span class="sort-indicator" id="sort-lot-items">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortLotTable('delivered')">
+                                            Delivered <span class="sort-indicator" id="sort-lot-delivered">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortLotTable('paid')">
+                                            Paid <span class="sort-indicator" id="sort-lot-paid">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortLotTable('revenue')">
+                                            Revenue <span class="sort-indicator" id="sort-lot-revenue">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortLotTable('pending')">
+                                            Pending <span class="sort-indicator" id="sort-lot-pending">↕</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lotStatsTableBody">
+                                    <!-- Lot stats will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Person-wise Stats Tab -->
+                    <div id="personTab" class="tab-content">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Total Collectors</div>
+                                    <div class="stat-value" id="totalUsers">0</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Total Paid</div>
+                                    <div class="stat-value" id="totalPaid">₹0</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Total Pending</div>
+                                    <div class="stat-value" id="totalPending">₹0</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-info">
+                                    <div class="stat-label">Total Figs</div>
+                                    <div class="stat-value" id="totalFigs">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <h3>Collector Details</h3>
+                            <table class="stats-table sortable-table">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" onclick="sortPersonTable('username')">
+                                            Collector <span class="sort-indicator" id="sort-username">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortPersonTable('lots')">
+                                            Lots Participated <span class="sort-indicator" id="sort-lots">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortPersonTable('paid')">
+                                            Amount Paid <span class="sort-indicator" id="sort-paid">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortPersonTable('pending')">
+                                            Amount Pending <span class="sort-indicator" id="sort-pending">↕</span>
+                                        </th>
+                                        <th class="sortable" onclick="sortPersonTable('figs')">
+                                            Figs Collected <span class="sort-indicator" id="sort-figs">↕</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="personStatsTableBody">
+                                    <!-- Person stats will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Checklist Section -->
+            <section id="checklistSection" class="content-section">
+                <div class="section-header">
+                    <h1>Checklist</h1>
+                </div>
+
+                <div class="users-container">
+                    <div id="checklistTableBody">
+                        <!-- Checklist sections will be loaded here -->
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <!-- Add User Modal -->
     <div id="addUserModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add New User</h2>
-                <span class="close" onclick="closeAddUserModal()">&times;</span>
+                <h2>Add New Collector</h2>
+                <button class="close" onclick="closeAddUserModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
                     <div class="form-group">
-                        <label for="newUsername">Username:</label>
-                        <input type="text" id="newUsername" required placeholder="Enter username">
+                        <label for="newUsername">Collector Name:</label>
+                        <input type="text" id="newUsername" required placeholder="Enter collector name">
                     </div>
                     <div class="form-group">
                         <label for="newPassword">Password:</label>
                         <div class="password-input-group">
                             <input type="password" id="newPassword" required placeholder="Enter password">
-                            <button type="button" class="toggle-password" onclick="togglePassword('newPassword')">🫣</button>
+                            <button type="button" class="toggle-password" onclick="togglePassword('newPassword')">
+                                <span id="newPasswordToggle">Show</span>
+                            </button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -91,11 +262,13 @@
                         <label for="newAccessLevel">Access Level:</label>
                         <select id="newAccessLevel" required>
                             <option value="viewer">Viewer</option>
+                            <option value="manager">Manager</option>
+                            <option value="admin">Admin</option>
                         </select>
                     </div>
                     <div class="form-actions">
                         <button type="button" onclick="closeAddUserModal()" class="btn btn-secondary">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Add User</button>
+                        <button type="submit" class="btn btn-primary">Add Collector</button>
                     </div>
                 </form>
             </div>
@@ -106,21 +279,23 @@
     <div id="editUserModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Edit User</h2>
-                <span class="close" onclick="closeEditUserModal()">&times;</span>
+                <h2>Edit Collector</h2>
+                <button class="close" onclick="closeEditUserModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="editUserForm">
                     <input type="hidden" id="editUserId">
                     <div class="form-group">
-                        <label for="editUsername">Username:</label>
-                        <input type="text" id="editUsername" required placeholder="Enter username">
+                        <label for="editUsername">Collector Name:</label>
+                        <input type="text" id="editUsername" required placeholder="Enter collector name">
                     </div>
                     <div class="form-group">
                         <label for="editPassword">Password:</label>
                         <div class="password-input-group">
                             <input type="password" id="editPassword" placeholder="Leave blank to keep current password">
-                            <button type="button" class="toggle-password" onclick="togglePassword('editPassword')">🫣</button>
+                            <button type="button" class="toggle-password" onclick="togglePassword('editPassword')">
+                                <span id="editPasswordToggle">Show</span>
+                            </button>
                         </div>
                         <small>Leave blank if you don't want to change the password</small>
                     </div>
@@ -138,7 +313,7 @@
                     </div>
                     <div class="form-actions">
                         <button type="button" onclick="closeEditUserModal()" class="btn btn-secondary">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update User</button>
+                        <button type="submit" class="btn btn-primary">Update Collector</button>
                     </div>
                 </form>
             </div>

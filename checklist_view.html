@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checklist - Collection Manager</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/checklist_view.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" id="adminPanelHeaderBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">Admin Panel</button>
+                <span class="user-name" id="userName"></span>
+                <button onclick="logout()" class="header-btn" id="logoutBtn">Logout</button>
+                <button onclick="window.location.href='index.html'" class="header-btn" id="loginBtn" style="display:none;">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="breadcrumb-container">
+        <div class="breadcrumb-content">
+            <nav class="breadcrumb">
+                <a href="dashboard.html">Home</a>
+                <span class="breadcrumb-separator">/</span>
+                <a href="admin_panel.html?section=checklist">Admin Panel</a>
+                <span class="breadcrumb-separator">/</span>
+                <span class="breadcrumb-current" id="lotTitle">Checklist</span>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="checklist-top-bar">
+            <button class="btn-back" onclick="goBackToAdminPanel()">← Back to Admin Panel</button>
+            <div class="checklist-actions">
+                <button class="btn-check-all" onclick="checkAllItems()">✓ Check All</button>
+                <button class="btn-reset" onclick="resetAllItems()">↻ Reset All</button>
+            </div>
+        </div>
+
+        <div class="checklist-header">
+            <h2 id="lotNameTitle">Loading...</h2>
+        </div>
+
+        <div id="checklistGallery" class="loading">
+            Loading items...
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/checklist_view.js"></script>
+</body>
+</html>
+

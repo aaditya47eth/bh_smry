@@ -11,11 +11,7 @@ body::before {
     display: none !important;
 }
 
-.header {
-    background: var(--secondary-black) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-}
+/* Header uses common.css styles - removed override for consistency */
 
 .container {
     background: var(--white) !important;
@@ -128,23 +124,44 @@ body::before {
 }
 
 .controls label {
-    font-size: 1.1em;
-    margin-right: 15px;
-    font-weight: bold;
+    font-size: 0.875rem;
+    margin-right: 12px;
+    font-weight: 500;
     color: var(--secondary-black);
 }
 
-.controls button {
-    padding: 10px 20px;
-    margin: 0 5px;
-    font-size: 1em;
+.controls select {
+    padding: 8px 12px;
+    border: 1px solid var(--light-gray);
+    border-radius: 8px;
+    font-size: 0.875rem;
     cursor: pointer;
-    border: 2px solid var(--primary-blue);
+    background: var(--white);
+    color: var(--secondary-black);
+    transition: all 0.2s;
+}
+
+.controls select:hover {
+    border-color: var(--primary-blue);
+}
+
+.controls select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(1, 176, 240, 0.1);
+}
+
+.controls button {
+    padding: 8px 16px;
+    margin: 0 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--primary-blue);
     background: var(--white);
     color: var(--primary-blue);
     border-radius: 8px;
-    transition: all 0.3s;
-    font-weight: 600;
+    transition: all 0.2s;
 }
 
 .controls button:hover {
@@ -152,15 +169,42 @@ body::before {
     color: var(--white);
 }
 
+.controls .zoom-btn {
+    padding: 6px 12px;
+    font-weight: 600;
+    min-width: 36px;
+}
+
+.controls .reset-btn {
+    margin-left: 8px;
+}
+
+.controls #zoomSlider {
+    width: 150px;
+    margin: 0 12px;
+    vertical-align: middle;
+    cursor: pointer;
+    accent-color: var(--primary-blue);
+}
+
+.controls #zoomLevel {
+    display: inline-block;
+    min-width: 50px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--secondary-black);
+}
+
 .controls .generate-btn {
-    background: var(--success);
+    background: var(--primary-blue);
     color: var(--white);
-    border-color: var(--success);
+    border-color: var(--primary-blue);
     margin-left: 20px;
 }
 
 .controls .generate-btn:hover {
-    background: #059669;
+    background: var(--primary-blue-dark);
+    box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
 }
 
 .controls .save-json-btn {
@@ -175,14 +219,51 @@ body::before {
 }
 
 .controls .add-new-btn {
-    background: var(--warning);
+    background: var(--primary-blue);
     color: var(--white);
-    border-color: var(--warning);
+    border-color: var(--primary-blue);
     margin-left: 10px;
 }
 
 .controls .add-new-btn:hover {
-    background: #d97706;
+    background: var(--primary-blue-dark);
+    box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
+}
+
+.controls .lock-btn {
+    background: var(--white);
+    border: 1px solid var(--light-gray);
+    padding: 8px;
+    margin: 0 12px 0 8px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+}
+
+.controls .lock-btn:hover {
+    border-color: var(--primary-blue);
+    background: var(--primary-light);
+}
+
+.controls .lock-btn.locked {
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+
+.lock-icon-img {
+    width: 18px;
+    height: 18px;
+    display: block;
+    vertical-align: middle;
+}
+
+.controls .lock-btn.locked .lock-icon-img {
+    filter: brightness(0) saturate(100%) invert(38%) sepia(75%) saturate(1500%) hue-rotate(10deg) brightness(95%) contrast(90%);
 }
 
 .user-section {

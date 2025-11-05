@@ -14,8 +14,10 @@
                 <img src="https://res.cloudinary.com/daye1yfzy/image/upload/v1761855859/5f5d5485-2656-4523-916b-5464cb0f7304.png" alt="Logo" class="header-logo" onclick="window.location.href='dashboard.html'">
             </div>
             <div class="header-actions">
+                <button class="header-btn" id="adminPanelHeaderBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">Admin Panel</button>
                 <span class="user-name" id="userName"></span>
-                <button onclick="logout()" class="header-btn">Logout</button>
+                <button onclick="logout()" class="header-btn" id="logoutBtn">Logout</button>
+                <button onclick="window.location.href='index.html'" class="header-btn" id="loginBtn" style="display:none;">Login</button>
             </div>
         </div>
     </div>
@@ -23,7 +25,7 @@
     <div class="breadcrumb-container">
         <div class="breadcrumb-content">
             <nav class="breadcrumb">
-                <a href="dashboard.html">Dashboard</a>
+                <a href="dashboard.html">Home</a>
                 <span class="breadcrumb-separator">/</span>
                 <span class="breadcrumb-current" id="lotTitle">Lot View</span>
             </nav>
@@ -33,22 +35,28 @@
     <div class="container">
         <div class="controls">
             <label>Switch Lot:</label>
-            <select id="lotDropdown" onchange="switchLot()" style="padding: 8px 12px; border-radius: 5px; border: 1px solid #ddd; margin-right: 20px;">
+            <select id="lotDropdown" onchange="switchLot()">
                 <option value="">Loading...</option>
             </select>
             
-            <label>Size:</label>
-            <button onclick="decreaseSize()">- Decrease</button>
-            <button onclick="resetSize()">Reset</button>
-            <button onclick="increaseSize()">+ Increase</button>
+            <button class="lock-btn" id="lockBtn" onclick="toggleLock()" style="display:none;" title="Lock/Unlock Lot">
+                <img id="lockIcon" src="https://res.cloudinary.com/daye1yfzy/image/upload/v1762317008/lock-open-solid-full_bh6f8q.svg" alt="Lock" class="lock-icon-img">
+            </button>
+            
+            <label>Zoom:</label>
+            <button onclick="decreaseSize()" class="zoom-btn">-</button>
+            <input type="range" id="zoomSlider" min="50" max="150" step="10" value="100" oninput="setZoomLevel(this.value)">
+            <span id="zoomLevel">100%</span>
+            <button onclick="increaseSize()" class="zoom-btn">+</button>
+            <button onclick="resetSize()" class="reset-btn">Reset</button>
             
             <label style="margin-left: 20px;">
                 <input type="checkbox" id="showTotalsCheckbox" checked onclick="toggleShowTotals()">
                 Show Totals
             </label>
             
-            <button class="generate-btn" onclick="generatePNG()">📸 Generate PNG</button>
-            <button class="add-new-btn" id="addNewBtn" onclick="openAddModal()" style="display:none;">➕ Add New</button>
+            <button class="generate-btn" onclick="generatePNG()">Generate PNG</button>
+            <button class="add-new-btn" id="addNewBtn" onclick="openAddModal()" style="display:none;">+ Add New</button>
         </div>
 
         <div id="gallery" class="loading">
@@ -63,8 +71,8 @@
             
             <form id="addItemForm" onsubmit="event.preventDefault(); addNewItem();">
                 <div class="form-group">
-                    <label>Username:</label>
-                    <input type="text" id="newUsername" list="usernames" placeholder="Enter or select username" required>
+                    <label>Collector:</label>
+                    <input type="text" id="newUsername" list="usernames" placeholder="Enter or select collector" required>
                     <datalist id="usernames"></datalist>
                 </div>
                 
@@ -93,14 +101,14 @@
     <!-- Pass Item Modal -->
     <div id="passModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">Pass Item to User</div>
+            <div class="modal-header">Pass Item to Collector</div>
             
             <div class="form-group">
-                <label>Username:</label>
-                <input type="text" id="passUsername" list="passUsernames" placeholder="Enter or select username" required>
+                <label>Collector:</label>
+                <input type="text" id="passUsername" list="passUsernames" placeholder="Enter or select collector" required>
                 <datalist id="passUsernames"></datalist>
                 <small style="color: #666; display: block; margin-top: 5px;">
-                    Note: If you enter a new username, a new user will be created.
+                    Note: If you enter a new collector, a new collector will be created.
                 </small>
             </div>
             
