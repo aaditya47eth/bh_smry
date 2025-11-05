@@ -4,7 +4,7 @@
 
 let currentUser = null;
 let allLots = [];
-let displayedLotsCount = 12; // Initially show 12 lots
+let displayedLotsCount = 7; // Will be set based on user permissions
 
 // Check authentication
 window.addEventListener('DOMContentLoaded', () => {
@@ -42,9 +42,15 @@ window.addEventListener('DOMContentLoaded', () => {
     // Show month filter for admin/manager only
     if (hasPermission('add')) {
         document.getElementById('monthFilter').style.display = 'block';
+        displayedLotsCount = 7; // Admin/Manager: 7 lots + 1 "Create New" card = 8 total
+    } else {
+        displayedLotsCount = 8; // Viewers: 8 lots (no "Create New" card)
     }
     
     loadLots();
+    
+    // Load live reviews for slider
+    loadLiveReviews();
 });
 
 async function loadLots() {
@@ -121,8 +127,8 @@ function filterLotsByMonth() {
     
     const selectedMonth = monthFilter.value;
     
-    // Reset displayed count when filtering
-    displayedLotsCount = 12;
+    // Reset displayed count when filtering (based on user permissions)
+    displayedLotsCount = hasPermission('add') ? 7 : 8;
     
     if (selectedMonth === 'all') {
         displayLots(allLots);
@@ -228,7 +234,7 @@ function displayLots(lots) {
             <span class="arrow-down">▼</span>
         `;
         showMoreBtn.onclick = () => {
-            displayedLotsCount += 12;
+            displayedLotsCount += 7;
             displayLots(lots);
         };
         container.appendChild(showMoreBtn);
@@ -434,6 +440,308 @@ function logout() {
         clearSession();
         window.location.href = 'index.html';
     }
+}
+
+// Guest login - clear session and go to login page
+function guestLogin() {
+    clearSession();
+    window.location.href = 'index.html';
+}
+
+// ==============================================================
+// LIVE REVIEWS SLIDER
+// ==============================================================
+
+// Shuffle array using Fisher-Yates algorithm
+function shuffleArray(array) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
+async function loadLiveReviews() {
+    try {
+        const { data: reviews, error } = await supabaseClient
+            .from('user_reviews')
+            .select('*')
+            .eq('status', 'visible')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        if (!reviews || reviews.length === 0) {
+            // Hide slider if no reviews
+            document.getElementById('reviewsSliderContainer').style.display = 'none';
+            return;
+        }
+        
+        // Show slider
+        document.getElementById('reviewsSliderContainer').style.display = 'block';
+        
+        const track = document.getElementById('reviewsTrack');
+        track.innerHTML = '';
+        
+        // Randomize the order of reviews and repeat 3 times for infinite scroll effect
+        const shuffledReviews = shuffleArray(reviews);
+        const displayReviews = [...shuffledReviews, ...shuffledReviews, ...shuffledReviews];
+        
+        displayReviews.forEach(review => {
+            const slide = document.createElement('div');
+            slide.className = 'review-slide';
+            slide.innerHTML = `
+                <img src="${review.image_url}" alt="${review.username}'s review">
+                <div class="review-username">${review.username}</div>
+            `;
+            
+            // Click to view full image
+            slide.onclick = () => openReviewImageModal(review.image_url, review.username);
+            
+            track.appendChild(slide);
+        });
+        
+        // Start auto-scrolling after reviews are loaded
+        setTimeout(() => {
+            hasSetupListeners = false; // Reset before starting
+            startAutoScroll();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error loading live reviews:', error);
+        document.getElementById('reviewsSliderContainer').style.display = 'none';
+    }
+}
+
+// Scroll reviews left or right
+function scrollReviews(direction) {
+    const slider = document.getElementById('reviewsSlider');
+    if (!slider) return;
+    
+    const scrollAmount = 300; // Scroll by ~2 images
+    
+    // Temporarily pause auto-scroll
+    stopAutoScroll();
+    
+    // Smooth manual scroll
+    const startScroll = slider.scrollLeft;
+    const targetScroll = direction === 'left' 
+        ? startScroll - scrollAmount 
+        : startScroll + scrollAmount;
+    
+    const duration = 300; // milliseconds
+    const startTime = performance.now();
+    
+    function animateScroll(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function (ease-out)
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        
+        slider.scrollLeft = startScroll + (targetScroll - startScroll) * easeOut;
+        
+        if (progress < 1) {
+            requestAnimationFrame(animateScroll);
+        } else {
+            // Resume auto-scroll after manual scroll completes
+            setTimeout(() => {
+                if (!isAutoScrolling) {
+                    startAutoScroll();
+                }
+            }, 1500);
+        }
+    }
+    
+    requestAnimationFrame(animateScroll);
+}
+
+// Auto-scroll reviews
+let autoScrollAnimationId = null;
+let hasSetupListeners = false;
+let isAutoScrolling = true;
+let lastScrollTime = 0;
+
+function startAutoScroll() {
+    const slider = document.getElementById('reviewsSlider');
+    if (!slider) return;
+    
+    // Cancel any existing animation
+    if (autoScrollAnimationId) {
+        cancelAnimationFrame(autoScrollAnimationId);
+        autoScrollAnimationId = null;
+    }
+    
+    isAutoScrolling = true;
+    lastScrollTime = performance.now();
+    
+    function animate(currentTime) {
+        if (!isAutoScrolling) return;
+        
+        const slider = document.getElementById('reviewsSlider');
+        if (!slider) return;
+        
+        // Calculate delta time for smooth animation (60fps)
+        const deltaTime = currentTime - lastScrollTime;
+        lastScrollTime = currentTime;
+        
+        // Scroll at consistent speed (approximately 30 pixels per second)
+        const scrollSpeed = 0.05; // pixels per millisecond
+        const scrollAmount = scrollSpeed * deltaTime;
+        
+        slider.scrollLeft += scrollAmount;
+        
+        // Loop back to start when reaching 2/3 of the way (after 2nd set of reviews)
+        // This creates seamless infinite scroll since we have 3 copies
+        const maxScroll = slider.scrollWidth - slider.clientWidth;
+        const twoThirdsPoint = (slider.scrollWidth * 2) / 3;
+        
+        if (slider.scrollLeft >= twoThirdsPoint) {
+            slider.scrollLeft = 0;
+        }
+        
+        // Continue animation
+        autoScrollAnimationId = requestAnimationFrame(animate);
+    }
+    
+    // Start animation
+    autoScrollAnimationId = requestAnimationFrame(animate);
+    
+    // Setup event listeners only once
+    if (!hasSetupListeners) {
+        hasSetupListeners = true;
+        
+        let scrollTimeout = null;
+        let isUserScrolling = false;
+        
+        // Pause on hover
+        slider.addEventListener('mouseenter', () => {
+            isAutoScrolling = false;
+            if (autoScrollAnimationId) {
+                cancelAnimationFrame(autoScrollAnimationId);
+                autoScrollAnimationId = null;
+            }
+        });
+        
+        // Resume on mouse leave
+        slider.addEventListener('mouseleave', () => {
+            if (!isAutoScrolling && !isUserScrolling) {
+                startAutoScroll();
+            }
+        });
+        
+        // Detect manual scrolling (mouse/trackpad drag)
+        slider.addEventListener('scroll', () => {
+            if (isAutoScrolling) {
+                // This is auto-scroll, ignore
+                return;
+            }
+            
+            // User is manually scrolling
+            isUserScrolling = true;
+            
+            // Clear existing timeout
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+            
+            // Resume auto-scroll after user stops scrolling for 2 seconds
+            scrollTimeout = setTimeout(() => {
+                isUserScrolling = false;
+                if (!isAutoScrolling) {
+                    startAutoScroll();
+                }
+            }, 2000);
+        }, { passive: true });
+    }
+}
+
+function stopAutoScroll() {
+    isAutoScrolling = false;
+    if (autoScrollAnimationId) {
+        cancelAnimationFrame(autoScrollAnimationId);
+        autoScrollAnimationId = null;
+    }
+}
+
+// Open review image modal
+function openReviewImageModal(imageUrl, username) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: pointer;
+    `;
+    
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.cssText = `
+        max-width: 90%;
+        max-height: 80%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    `;
+    
+    const usernameLabel = document.createElement('div');
+    usernameLabel.textContent = `Review by ${username}`;
+    usernameLabel.style.cssText = `
+        color: white;
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-top: 16px;
+    `;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        color: #000;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        font-size: 30px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    `;
+    
+    closeBtn.onmouseover = () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 1)';
+        closeBtn.style.transform = 'scale(1.1)';
+    };
+    
+    closeBtn.onmouseout = () => {
+        closeBtn.style.background = 'rgba(255, 255, 255, 0.9)';
+        closeBtn.style.transform = 'scale(1)';
+    };
+    
+    const closeModal = () => document.body.removeChild(overlay);
+    
+    overlay.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    img.onclick = (e) => e.stopPropagation();
+    
+    overlay.appendChild(img);
+    overlay.appendChild(usernameLabel);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
 }
 
 // Close modals when clicking outside

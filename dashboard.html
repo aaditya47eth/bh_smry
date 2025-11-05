@@ -17,7 +17,7 @@
                 <button class="header-btn" id="adminPanelHeaderBtn" onclick="window.location.href='admin_panel.html'" style="display:none;">Admin Panel</button>
                 <span class="user-name" id="userName"></span>
                 <button onclick="logout()" class="header-btn" id="logoutBtn">Logout</button>
-                <button onclick="window.location.href='index.html'" class="header-btn" id="loginBtn" style="display:none;">Login</button>
+                <button onclick="guestLogin()" class="header-btn" id="loginBtn" style="display:none;">Login</button>
             </div>
         </div>
     </div>
@@ -29,6 +29,17 @@
             </nav>
         </div>
     </div>
+
+        <!-- Review Slider -->
+        <div class="reviews-slider-container" id="reviewsSliderContainer" style="display:none;">
+            <button class="review-scroll-btn left" onclick="scrollReviews('left')">‹</button>
+            <div class="reviews-slider" id="reviewsSlider">
+                <div class="reviews-track" id="reviewsTrack">
+                    <!-- Review images will be loaded here -->
+                </div>
+            </div>
+            <button class="review-scroll-btn right" onclick="scrollReviews('right')">›</button>
+        </div>
 
     <div class="container">
         <div class="dashboard-header">

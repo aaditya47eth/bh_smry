@@ -3,6 +3,7 @@
 // ============================================
 
 let allUsersData = []; // Store all users for search functionality
+let adminReviewPastedImage = null; // Store pasted/selected image for admin review upload
 
 // Check authentication and permissions on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -82,6 +83,10 @@ function switchSection(sectionName) {
         document.getElementById('checklistSection').classList.add('active');
         document.querySelector('.menu-item[onclick*="checklist"]').classList.add('active');
         loadChecklistData(); // Load checklist data when switching to this section
+    } else if (sectionName === 'reviews') {
+        document.getElementById('reviewsSection').classList.add('active');
+        document.querySelector('.menu-item[onclick*="reviews"]').classList.add('active');
+        loadReviewsForApproval(); // Load reviews for approval
     }
 }
 
@@ -225,12 +230,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // Add new user to Supabase
 async function addNewUser() {
     const username = document.getElementById('newUsername').value.trim();
-    const password = document.getElementById('newPassword').value;
+    const password = document.getElementById('newPassword').value; // Can be empty
     const name = document.getElementById('newName').value.trim();
     const accessLevel = document.getElementById('newAccessLevel').value;
 
-    if (!username || !password || !name || !accessLevel) {
-        alert('Please fill in all fields');
+    if (!username || !name || !accessLevel) {
+        alert('Please fill in required fields (Collector Name, Number, and Access Level)');
         return;
     }
 
@@ -246,12 +251,12 @@ async function addNewUser() {
             return;
         }
 
-        // Insert new user
+        // Insert new user (password can be empty)
         const { data, error } = await supabaseClient
             .from('users')
             .insert([{
                 username: username,
-                password: password, // In production, this should be hashed!
+                password: password || '', // Use empty string if password not provided
                 number: name,
                 access_level: accessLevel
             }])
@@ -822,6 +827,7 @@ async function loadLotStats() {
         // Store lot stats data for sorting
         lotStatsData = Object.values(lotData).map(lot => ({
             name: lot.name,
+            lotId: lot.lotId,
             participants: lot.participants.size,
             items: lot.totalItems,
             delivered: lot.deliveredUsers.size,
@@ -855,6 +861,7 @@ function displayLotStats(lots) {
 
     lots.forEach(lot => {
         const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
         tr.innerHTML = `
             <td><strong>${lot.name}</strong></td>
             <td>${lot.participants}</td>
@@ -864,6 +871,12 @@ function displayLotStats(lots) {
             <td>₹${lot.revenue.toFixed(2)}</td>
             <td>₹${lot.pending.toFixed(2)}</td>
         `;
+        
+        // Make entire row clickable
+        tr.onclick = () => {
+            window.location.href = `lot_view.html?lot_id=${lot.lotId}&lot_name=${encodeURIComponent(lot.name)}`;
+        };
+        
         tbody.appendChild(tr);
     });
 }
@@ -883,6 +896,22 @@ function sortLotTable(column) {
     switch (column) {
         case 'name':
             sortedData.sort((a, b) => {
+                // Natural sort: extract numbers from lot names for proper numeric sorting
+                const extractNumber = (str) => {
+                    const match = str.match(/\d+/);
+                    return match ? parseInt(match[0]) : 0;
+                };
+                
+                const numA = extractNumber(a.name);
+                const numB = extractNumber(b.name);
+                
+                // If both have numbers, sort by number
+                if (numA && numB) {
+                    const comparison = numA - numB;
+                    return currentLotSortDirection === 'asc' ? comparison : -comparison;
+                }
+                
+                // Otherwise, use string comparison
                 const comparison = a.name.localeCompare(b.name);
                 return currentLotSortDirection === 'asc' ? comparison : -comparison;
             });
@@ -1143,3 +1172,363 @@ function updateSortIndicators(activeColumn, direction) {
     });
 }
 
+
+// ==============================================================
+// REVIEW APPROVAL FUNCTIONS
+// ==============================================================
+
+async function loadReviewsForApproval() {
+    const container = document.getElementById('reviewsTableBody');
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Loading reviews...</div>';
+    
+    try {
+        const { data: reviews, error } = await supabaseClient
+            .from('user_reviews')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        if (!reviews || reviews.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No reviews found</div>';
+            return;
+        }
+        
+        container.innerHTML = '';
+        reviews.forEach(review => {
+            const card = document.createElement('div');
+            card.className = 'review-approval-card';
+            
+            const date = new Date(review.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            
+            const isVisible = review.status === 'visible';
+            const toggleButton = isVisible 
+                ? `<button class="btn-hide" onclick="toggleReviewVisibility('${review.id}', 'hidden')">Hide</button>`
+                : `<button class="btn-show" onclick="toggleReviewVisibility('${review.id}', 'visible')">Show</button>`;
+            
+            card.innerHTML = `
+                <img src="${review.image_url}" alt="${review.username}'s review" class="review-approval-image" onclick="openReviewImagePreview('${review.image_url}', '${review.username}')">
+                <div class="review-approval-content">
+                    <div class="review-approval-user">
+                        <a href="person_view.html?username=${encodeURIComponent(review.username)}" class="username-link">${review.username}</a>
+                    </div>
+                    <div class="review-approval-date">Submitted: ${date}</div>
+                    <div class="review-approval-actions">
+                        ${toggleButton}
+                        <button class="btn-delete" onclick="deleteReviewAsAdmin('${review.id}', '${review.image_url}')">Delete</button>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(card);
+        });
+        
+    } catch (error) {
+        console.error('Error loading reviews:', error);
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load reviews</div>';
+    }
+}
+
+// Toggle review visibility (show/hide)
+async function toggleReviewVisibility(reviewId, newStatus) {
+    try {
+        const { error } = await supabaseClient
+            .from('user_reviews')
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', reviewId);
+        
+        if (error) throw error;
+        
+        loadReviewsForApproval(); // Reload reviews
+        
+    } catch (error) {
+        console.error('Error toggling review visibility:', error);
+    }
+}
+
+// Delete review as admin
+async function deleteReviewAsAdmin(reviewId, imageUrl) {
+    if (!confirm('Are you sure you want to delete this review?')) return;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('user_reviews')
+            .delete()
+            .eq('id', reviewId);
+        
+        if (error) throw error;
+        
+        // Log image URL for manual cleanup
+        console.log('Review deleted. Image URL (for manual Cloudinary cleanup):', imageUrl);
+        
+        loadReviewsForApproval();
+        
+    } catch (error) {
+        console.error('Error deleting review:', error);
+    }
+}
+
+function openReviewImagePreview(imageUrl, username) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column;
+        align-items: center; justify-content: center; z-index: 10000; cursor: pointer;
+    `;
+    
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.cssText = `
+        max-width: 90%; max-height: 80%; object-fit: contain;
+        border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    `;
+    
+    const usernameLabel = document.createElement('div');
+    usernameLabel.textContent = `Review by ${username}`;
+    usernameLabel.style.cssText = `color: white; font-size: 1.25rem; font-weight: 600; margin-top: 16px;`;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '×';
+    closeBtn.style.cssText = `
+        position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, 0.9);
+        color: #000; border: none; width: 40px; height: 40px; border-radius: 50%;
+        font-size: 30px; cursor: pointer; display: flex; align-items: center;
+        justify-content: center; transition: all 0.2s;
+    `;
+    
+    closeBtn.onmouseover = () => { closeBtn.style.background = 'rgba(255, 255, 255, 1)'; closeBtn.style.transform = 'scale(1.1)'; };
+    closeBtn.onmouseout = () => { closeBtn.style.background = 'rgba(255, 255, 255, 0.9)'; closeBtn.style.transform = 'scale(1)'; };
+    
+    const closeModal = () => document.body.removeChild(overlay);
+    overlay.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    img.onclick = (e) => e.stopPropagation();
+    
+    overlay.appendChild(img);
+    overlay.appendChild(usernameLabel);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+}
+
+// ==============================================================
+// ADMIN ADD REVIEW FUNCTIONS
+// ==============================================================
+
+// Cloudinary configuration for reviews
+const REVIEWS_CLOUDINARY_CLOUD_NAME = 'dt5jgkfwb';
+const REVIEWS_CLOUDINARY_UPLOAD_PRESET = 'review_strg';
+
+// Open admin add review modal
+async function openAdminAddReviewModal() {
+    try {
+        // Fetch all users to populate datalist
+        const { data: users, error } = await supabaseClient
+            .from('users')
+            .select('username')
+            .order('username', { ascending: true });
+        
+        if (error) throw error;
+        
+        // Populate username datalist for autocomplete
+        const datalist = document.getElementById('collectorsList');
+        datalist.innerHTML = '';
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.username;
+            datalist.appendChild(option);
+        });
+        
+        document.getElementById('adminAddReviewModal').style.display = 'block';
+        setupAdminReviewPasteArea();
+        
+        // Focus on the paste area after modal opens
+        setTimeout(() => {
+            document.getElementById('adminReviewPasteArea').focus();
+        }, 100);
+        
+    } catch (error) {
+        console.error('Error opening add review modal:', error);
+    }
+}
+
+// Close admin add review modal
+function closeAdminAddReviewModal() {
+    document.getElementById('adminAddReviewModal').style.display = 'none';
+    document.getElementById('adminAddReviewForm').reset();
+    document.getElementById('adminReviewFileInput').value = '';
+    const pasteArea = document.getElementById('adminReviewPasteArea');
+    pasteArea.classList.remove('has-image');
+    pasteArea.onclick = () => document.getElementById('adminReviewFileInput').click();
+    pasteArea.innerHTML = '<div class="paste-instructions">📎 Click to select image from files<br><small style="font-size: 0.875rem; opacity: 0.7;">or press Ctrl+V to paste</small></div>';
+    adminReviewPastedImage = null;
+}
+
+// Setup paste area for admin review
+function setupAdminReviewPasteArea() {
+    const pasteArea = document.getElementById('adminReviewPasteArea');
+    
+    pasteArea.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const items = e.clipboardData.items;
+        
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    adminReviewPastedImage = event.target.result;
+                    pasteArea.classList.add('has-image');
+                    pasteArea.onclick = null;
+                    pasteArea.innerHTML = `<img src="${adminReviewPastedImage}" alt="Pasted image" title="Click to change image" style="cursor: pointer;">`;
+                    
+                    pasteArea.querySelector('img').onclick = (e) => {
+                        e.stopPropagation();
+                        document.getElementById('adminReviewFileInput').click();
+                    };
+                };
+                
+                reader.readAsDataURL(blob);
+                break;
+            }
+        }
+    });
+}
+
+// Handle file selection for admin review
+function handleAdminReviewFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
+        return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) {
+        alert('Image size should be less than 10MB');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        adminReviewPastedImage = e.target.result;
+        const pasteArea = document.getElementById('adminReviewPasteArea');
+        pasteArea.classList.add('has-image');
+        pasteArea.onclick = null;
+        pasteArea.innerHTML = `<img src="${adminReviewPastedImage}" alt="Selected image" title="Click to change image" style="cursor: pointer;">`;
+        
+        pasteArea.querySelector('img').onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('adminReviewFileInput').click();
+        };
+    };
+    reader.readAsDataURL(file);
+}
+
+// Submit admin add review
+async function submitAdminAddReview() {
+    const username = document.getElementById('reviewUsername').value.trim();
+    
+    if (!username) {
+        alert('Please enter a collector name');
+        return;
+    }
+    
+    if (!adminReviewPastedImage) {
+        alert('Please select or paste an image');
+        return;
+    }
+    
+    const submitBtn = document.querySelector('#adminAddReviewForm button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Uploading...';
+    
+    try {
+        // Check if user exists, if not create new user
+        let { data: userData, error: userError } = await supabaseClient
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .single();
+        
+        // If user doesn't exist, create new user
+        if (userError && userError.code === 'PGRST116') {
+            const { data: newUser, error: createError } = await supabaseClient
+                .from('users')
+                .insert([{
+                    username: username,
+                    number: '',
+                    access_level: 'viewer',
+                    password: '' // Empty password - user can set it later
+                }])
+                .select('id')
+                .single();
+            
+            if (createError) throw createError;
+            userData = newUser;
+        } else if (userError) {
+            throw userError;
+        }
+        
+        // Check review count for this user
+        const { data: existingReviews, error: countError } = await supabaseClient
+            .from('user_reviews')
+            .select('id')
+            .eq('username', username);
+        
+        if (countError) throw countError;
+        
+        if (existingReviews && existingReviews.length >= 20) {
+            alert('This collector has reached the maximum of 20 reviews');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Upload Review';
+            return;
+        }
+        
+        // Upload to Cloudinary
+        const formData = new FormData();
+        formData.append('file', adminReviewPastedImage);
+        formData.append('upload_preset', REVIEWS_CLOUDINARY_UPLOAD_PRESET);
+        formData.append('folder', 'user_reviews');
+        
+        const response = await fetch(
+            `https://api.cloudinary.com/v1_1/${REVIEWS_CLOUDINARY_CLOUD_NAME}/image/upload`,
+            {
+                method: 'POST',
+                body: formData
+            }
+        );
+        
+        if (!response.ok) throw new Error('Cloudinary upload failed');
+        
+        const cloudinaryData = await response.json();
+        const cloudinaryUrl = cloudinaryData.secure_url;
+        
+        // Insert review into database
+        const { error: insertError } = await supabaseClient
+            .from('user_reviews')
+            .insert([{
+                user_id: userData.id,
+                username: username,
+                image_url: cloudinaryUrl,
+                status: 'hidden'
+            }]);
+        
+        if (insertError) throw insertError;
+        
+        closeAdminAddReviewModal();
+        loadReviewsForApproval();
+        
+    } catch (error) {
+        console.error('Error adding review:', error);
+        alert('Failed to add review: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Upload Review';
+    }
+}

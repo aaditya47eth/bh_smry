@@ -34,10 +34,18 @@
 
     <div class="container">
         <div class="user-info-card">
-            <h2 id="displayUsername">Username</h2>
+            <h2 id="displayUsername" style="margin-bottom: 16px;">Username</h2>
             <div id="totalSummary" class="summary"></div>
         </div>
 
+        <!-- Tabs -->
+        <div class="person-tabs">
+            <button class="tab-btn active" onclick="switchPersonTab('lots')">Lot Details</button>
+            <button class="tab-btn" onclick="switchPersonTab('reviews')">User Reviews</button>
+        </div>
+
+        <!-- Lot Details Tab Content -->
+        <div id="lotsTab" class="tab-content active">
         <div class="filters-controls">
             <div class="filters">
                 <label>Filter by Status:</label>
@@ -68,6 +76,48 @@
 
         <div id="lotsContainer" class="loading">
             Loading your items...
+        </div>
+        </div>
+
+        <!-- User Reviews Tab Content -->
+        <div id="reviewsTab" class="tab-content">
+            <div class="reviews-section">
+                <div class="reviews-header">
+                    <h3>My Reviews</h3>
+                    <button class="btn-upload-review" onclick="openUploadReviewModal()">+ Add Review Image</button>
+                </div>
+                
+                <div id="userReviewsContainer" class="reviews-grid">
+                    <!-- Reviews will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Review Modal -->
+    <div id="uploadReviewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Review Image</h2>
+                <button class="close" onclick="closeUploadReviewModal()">&times;</button>
+            </div>
+            <form id="uploadReviewForm" onsubmit="event.preventDefault(); uploadReviewImage();">
+                <div class="form-group">
+                    <label>Upload Your Review Image:</label>
+                    <div id="reviewPasteArea" class="image-paste-area" tabindex="0" onclick="document.getElementById('reviewFileInput').click()">
+                        <div class="paste-instructions">
+                            📎 Click to select image from files<br>
+                            <small style="font-size: 0.875rem; opacity: 0.7;">or press Ctrl+V to paste</small>
+                        </div>
+                    </div>
+                    <input type="file" id="reviewFileInput" accept="image/*" style="display: none;" onchange="handleReviewFileSelect(event)">
+                    <p class="form-hint">💡 Maximum 20 review images allowed. Delete existing reviews to upload new ones.</p>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeUploadReviewModal()">Cancel</button>
+                    <button type="submit" class="btn-add">Upload Review</button>
+                </div>
+            </form>
         </div>
     </div>
 
