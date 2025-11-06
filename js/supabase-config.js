@@ -47,6 +47,8 @@ function hasPermission(permission) {
             return ['admin', 'manager'].includes(accessLevel);
         case 'delete':
             return ['admin', 'manager'].includes(accessLevel);
+        case 'manage':
+            return ['admin', 'manager'].includes(accessLevel);
         case 'manage_users':
             return ['admin', 'manager'].includes(accessLevel);
         default:
