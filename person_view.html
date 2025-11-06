@@ -42,6 +42,7 @@
         <div class="person-tabs">
             <button class="tab-btn active" onclick="switchPersonTab('lots')">Lot Details</button>
             <button class="tab-btn" onclick="switchPersonTab('reviews')">User Reviews</button>
+            <button class="tab-btn" id="paymentHistoryTab" onclick="switchPersonTab('payments')">Payment History</button>
         </div>
 
         <!-- Lot Details Tab Content -->
@@ -89,6 +90,16 @@
                 
                 <div id="userReviewsContainer" class="reviews-grid">
                     <!-- Reviews will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment History Tab Content -->
+        <div id="paymentsTab" class="tab-content">
+            <div class="payment-history-section">
+                <h3>Payment History</h3>
+                <div id="paymentHistoryContainer" class="payment-history-table-container">
+                    <!-- Payment history will be loaded here -->
                 </div>
             </div>
         </div>

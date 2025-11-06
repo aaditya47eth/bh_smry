@@ -159,6 +159,11 @@
     background: #f0fdf4;
 }
 
+.checklist-item.rejected {
+    border-color: #ef4444;
+    background: #fef2f2;
+}
+
 /* Check Mark Overlay */
 .checked-overlay {
     position: absolute;
@@ -190,6 +195,40 @@
     font-size: 1.25rem;
     font-weight: bold;
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+/* Rejected Overlay */
+.rejected-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(239, 68, 68, 0.15);
+    border-radius: 8px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.checklist-item.rejected .rejected-overlay {
+    display: flex;
+}
+
+.reject-icon {
+    width: 32px;
+    height: 32px;
+    background: #ef4444;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    line-height: 1;
 }
 
 /* Loading State */

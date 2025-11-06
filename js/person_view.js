@@ -70,6 +70,16 @@ window.addEventListener('DOMContentLoaded', () => {
         isOwnProfile ? 'My Items' : `${targetUsername}'s Items`;
     document.getElementById('displayUsername').textContent = targetUsername;
     
+    // Hide Payment History tab for viewers looking at other profiles
+    const paymentTab = document.getElementById('paymentHistoryTab');
+    if (paymentTab) {
+        if (!isOwnProfile && !hasPermission('manage')) {
+            paymentTab.style.display = 'none';
+        } else {
+            paymentTab.style.display = 'inline-block';
+        }
+    }
+    
     // Hide lot details tab and stats if viewing someone else's profile (unless admin)
     if (!isOwnProfile && !isAdmin) {
         // Hide lot details tab
@@ -569,7 +579,8 @@ function switchPersonTab(tabName) {
         btn.classList.remove('active');
         // Check if this button is for the target tab
         if ((tabName === 'lots' && btn.textContent.includes('Lot Details')) ||
-            (tabName === 'reviews' && btn.textContent.includes('User Reviews'))) {
+            (tabName === 'reviews' && btn.textContent.includes('User Reviews')) ||
+            (tabName === 'payments' && btn.textContent.includes('Payment History'))) {
             btn.classList.add('active');
         }
     });
@@ -582,6 +593,9 @@ function switchPersonTab(tabName) {
     } else if (tabName === 'reviews') {
         document.getElementById('reviewsTab').classList.add('active');
         loadUserReviews();
+    } else if (tabName === 'payments') {
+        document.getElementById('paymentsTab').classList.add('active');
+        loadPaymentHistory();
     }
 }
 
@@ -642,16 +656,23 @@ async function loadUserReviews() {
             const card = document.createElement('div');
             card.className = 'review-card';
             
-            // Show delete button only for own profile or admin
-            const canDelete = isOwnProfile || currentUser.access_level.toLowerCase() === 'admin';
-            const deleteButton = canDelete 
-                ? `<div class="review-actions">
+            // Show delist/list and delete buttons only for own profile or admin
+            const canManage = isOwnProfile || currentUser.access_level.toLowerCase() === 'admin';
+            const isVisible = review.status === 'visible';
+            
+            let actionButtons = '';
+            if (canManage) {
+                const delistButton = isVisible 
+                    ? `<button class="btn-delist-review" onclick="delistReview('${review.id}')">Delist</button>`
+                    : `<button class="btn-list-review" onclick="listReview('${review.id}')">List</button>`;
+                
+                actionButtons = `<div class="review-actions">
+                    ${delistButton}
                     <button class="btn-delete-review" onclick="deleteReview('${review.id}', '${review.image_url}')">Delete</button>
-                   </div>`
-                : '';
+                   </div>`;
+            }
             
             // Show status dot only for own profile
-            const isVisible = review.status === 'visible';
             const statusDot = isOwnProfile 
                 ? `<span class="review-status-dot ${isVisible ? 'green' : 'red'}" title="${isVisible ? 'Visible' : 'Hidden'}"></span>`
                 : '';
@@ -659,7 +680,7 @@ async function loadUserReviews() {
             card.innerHTML = `
                 <img src="${review.image_url}" alt="Review" class="review-image" onclick="openReviewFullView('${review.image_url}')">
                 ${statusDot}
-                ${deleteButton}
+                ${actionButtons}
             `;
             container.appendChild(card);
         });
@@ -938,6 +959,160 @@ async function deleteReview(reviewId, imageUrl) {
         
     } catch (error) {
         console.error('Error deleting review:', error);
+    }
+}
+
+// Delist review (set status to hidden)
+async function delistReview(reviewId) {
+    if (!confirm('Are you sure you want to delist this review? It will no longer be visible on the homepage.')) return;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('user_reviews')
+            .update({ status: 'hidden', updated_at: new Date().toISOString() })
+            .eq('id', reviewId);
+        
+        if (error) throw error;
+        
+        loadUserReviews();
+        
+    } catch (error) {
+        console.error('Error delisting review:', error);
+        alert('Failed to delist review: ' + error.message);
+    }
+}
+
+// List review (set status to visible)
+async function listReview(reviewId) {
+    if (!confirm('Are you sure you want to list this review? It will be visible on the homepage.')) return;
+    
+    try {
+        const { error } = await supabaseClient
+            .from('user_reviews')
+            .update({ status: 'visible', updated_at: new Date().toISOString() })
+            .eq('id', reviewId);
+        
+        if (error) throw error;
+        
+        loadUserReviews();
+        
+    } catch (error) {
+        console.error('Error listing review:', error);
+        alert('Failed to list review: ' + error.message);
+    }
+}
+
+// ==============================================================
+// PAYMENT HISTORY FUNCTIONS
+// ==============================================================
+
+// Load payment history
+async function loadPaymentHistory() {
+    const container = document.getElementById('paymentHistoryContainer');
+    
+    // Check if user has permission to view this payment history
+    const currentUser = getCurrentUser();
+    const isOwnProfile = targetUsername === currentUser.username;
+    
+    if (!isOwnProfile && !hasPermission('manage')) {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">You do not have permission to view this payment history</div>';
+        return;
+    }
+    
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Loading payment history...</div>';
+    
+    try {
+        const { data: payments, error } = await supabaseClient
+            .from('payment_history')
+            .select('*')
+            .eq('username', targetUsername)
+            .order('payment_date', { ascending: false });
+        
+        if (error) throw error;
+        
+        if (!payments || payments.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No payment history found</div>';
+            return;
+        }
+        
+        // Group payments by batch_id to show multiple lots together
+        const paymentGroups = {};
+        payments.forEach(payment => {
+            const batchId = payment.batch_id || payment.id;
+            if (!paymentGroups[batchId]) {
+                paymentGroups[batchId] = [];
+            }
+            paymentGroups[batchId].push(payment);
+        });
+        
+        // Calculate total paid (count each batch only once, not per lot)
+        const totalPaid = Object.values(paymentGroups).reduce((sum, group) => {
+            return sum + parseFloat(group[0].amount || 0);
+        }, 0);
+        
+        // Create table
+        let tableHTML = `
+            <div style="margin-bottom: 20px; padding: 16px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+                <strong style="font-size: 1.1rem; color: #15803d;">Total Paid: ₹${totalPaid.toFixed(2)}</strong>
+            </div>
+            <table class="payment-history-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Lot Name(s)</th>
+                        <th>Amount</th>
+                        <th>Screenshots</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        Object.values(paymentGroups).forEach(group => {
+            const payment = group[0]; // Use first payment for common fields
+            const date = new Date(payment.payment_date).toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            
+            // Collect all lot names
+            const lotNames = group.map(p => p.lot_name).join(', ');
+            
+            // Get images (they should be same for all in the batch)
+            const imageUrls = payment.image_urls || [];
+            let imagesHTML = '-';
+            if (imageUrls.length > 0) {
+                imagesHTML = `<div style="display: flex; gap: 6px; flex-wrap: wrap;">`;
+                imageUrls.forEach(url => {
+                    imagesHTML += `<a href="${url}" target="_blank" style="display: block; width: 50px; height: 50px; overflow: hidden; border-radius: 6px; border: 2px solid #ddd; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </a>`;
+                });
+                imagesHTML += `</div>`;
+            }
+            
+            tableHTML += `
+                <tr>
+                    <td>${date}</td>
+                    <td><strong>${lotNames}</strong></td>
+                    <td style="color: #15803d; font-weight: 600;">₹${parseFloat(payment.amount).toFixed(2)}</td>
+                    <td>${imagesHTML}</td>
+                    <td>${payment.notes || '-'}</td>
+                </tr>
+            `;
+        });
+        
+        tableHTML += `
+                </tbody>
+            </table>
+        `;
+        
+        container.innerHTML = tableHTML;
+        
+    } catch (error) {
+        console.error('Error loading payment history:', error);
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load payment history</div>';
     }
 }
 

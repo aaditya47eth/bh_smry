@@ -339,7 +339,6 @@ document.getElementById('createLotForm').addEventListener('submit', async (e) =>
 
         closeCreateModal();
         loadLots(); // Reload lots
-        alert('Lot created successfully!');
     } catch (error) {
         console.error('Error creating lot:', error);
         alert('Failed to create lot. Maybe the name already exists?');

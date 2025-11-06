@@ -72,7 +72,7 @@
             <form id="addItemForm" onsubmit="event.preventDefault(); addNewItem();">
                 <div class="form-group">
                     <label>Collector:</label>
-                    <input type="text" id="newUsername" list="usernames" placeholder="Enter or select collector" required>
+                    <input type="text" id="newUsername" list="usernames" placeholder="Enter or select collector" required onkeydown="handleCollectorEnter(event)">
                     <datalist id="usernames"></datalist>
                 </div>
                 

@@ -234,6 +234,9 @@ body::before {
     position: absolute;
     bottom: 8px;
     right: 8px;
+    display: flex;
+    gap: 6px;
+    flex-direction: column;
 }
 
 .btn-delete-review {
@@ -253,11 +256,89 @@ body::before {
     transform: scale(1.05);
 }
 
+.btn-delist-review {
+    background: rgba(245, 158, 11, 0.9);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-delist-review:hover {
+    background: rgba(217, 119, 6, 1);
+    transform: scale(1.05);
+}
+
+.btn-list-review {
+    background: rgba(16, 185, 129, 0.9);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-list-review:hover {
+    background: rgba(5, 150, 105, 1);
+    transform: scale(1.05);
+}
+
 .form-hint {
     font-size: 0.8125rem;
     color: var(--medium-gray);
     margin-top: 8px;
     font-style: italic;
+}
+
+/* Payment History Styles */
+.payment-history-section {
+    padding: 24px;
+}
+
+.payment-history-section h3 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+}
+
+.payment-history-table-container {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.payment-history-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.payment-history-table thead {
+    background: var(--very-light-gray);
+}
+
+.payment-history-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--light-gray);
+}
+
+.payment-history-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--very-light-gray);
+}
+
+.payment-history-table tbody tr:hover {
+    background: #f8fafc;
 }
 
 /* Upload Review Modal Styles */
