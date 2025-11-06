@@ -4,6 +4,7 @@
 
 let allUsersData = []; // Store all users for search functionality
 let adminReviewPastedImage = null; // Store pasted/selected image for admin review upload
+let allReviewsData = []; // Store all reviews for sorting
 
 // Check authentication and permissions on page load
 document.addEventListener('DOMContentLoaded', async () => {
@@ -87,6 +88,10 @@ function switchSection(sectionName) {
         document.getElementById('reviewsSection').classList.add('active');
         document.querySelector('.menu-item[onclick*="reviews"]').classList.add('active');
         loadReviewsForApproval(); // Load reviews for approval
+    } else if (sectionName === 'payments') {
+        document.getElementById('paymentsSection').classList.add('active');
+        document.querySelector('.menu-item[onclick*="payments"]').classList.add('active');
+        loadPayments(); // Load payment history
     }
 }
 
@@ -447,7 +452,7 @@ async function loadChecklistData() {
         let items;
         let { data: itemsData, error: itemsError } = await supabaseClient
             .from('items')
-            .select('lot_id, checked');
+            .select('lot_id, checked, checklist_status');
 
         if (itemsError) {
             console.error('Error fetching items:', itemsError);
@@ -456,7 +461,7 @@ async function loadChecklistData() {
                 .select('lot_id');
             
             if (itemsError2) throw itemsError2;
-            items = itemsWithoutChecked.map(item => ({ ...item, checked: false }));
+            items = itemsWithoutChecked.map(item => ({ ...item, checked: false, checklist_status: 'unchecked' }));
         } else {
             items = itemsData;
         }
@@ -477,26 +482,46 @@ async function loadChecklistData() {
         lots.forEach(lot => {
             const lotItems = items ? items.filter(item => item.lot_id === lot.id) : [];
             const totalItems = lotItems.length;
-            const checkedItems = items ? lotItems.filter(item => item.checked === true).length : 0;
+            
+            // Count items that are processed (either checked OR rejected)
+            const processedItems = items ? lotItems.filter(item => {
+                const status = item.checklist_status || (item.checked ? 'checked' : 'unchecked');
+                return status === 'checked' || status === 'rejected';
+            }).length : 0;
             
             const lotData = {
                 lot,
                 totalItems,
-                checkedItems,
-                percentage: totalItems > 0 ? (checkedItems / totalItems * 100) : 0
+                checkedItems: processedItems, // Rename for display, but includes both checked and rejected
+                percentage: totalItems > 0 ? (processedItems / totalItems * 100) : 0
             };
 
-            if (checkedItems === 0) {
+            if (processedItems === 0) {
                 incomplete.push(lotData);
-            } else if (checkedItems === totalItems && totalItems > 0) {
+            } else if (processedItems === totalItems && totalItems > 0) {
                 completed.push(lotData);
             } else {
                 partial.push(lotData);
             }
         });
 
-        // Sort each category by lot name (case-insensitive, ascending)
+        // Sort each category by lot name (numeric sorting for proper order)
         const sortByLotName = (a, b) => {
+            // Extract numbers from lot names for proper numeric sorting
+            const extractNumber = (str) => {
+                const match = str.match(/\d+/);
+                return match ? parseInt(match[0]) : 0;
+            };
+            
+            const numA = extractNumber(a.lot.lot_name);
+            const numB = extractNumber(b.lot.lot_name);
+            
+            // If both have numbers, sort by number
+            if (numA && numB) {
+                return numA - numB;
+            }
+            
+            // Otherwise, use string comparison
             return a.lot.lot_name.toLowerCase().localeCompare(b.lot.lot_name.toLowerCase());
         };
         
@@ -581,7 +606,7 @@ function renderChecklistSection(container, title, lots, sectionId, isOpen) {
             <td>${lotData.totalItems}</td>
             <td>
                 <span class="checklist-badge ${lotData.percentage === 100 ? 'checked' : 'unchecked'}">
-                    ${lotData.percentage === 100 ? 'Checked' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
+                    ${lotData.percentage === 100 ? 'Complete' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
                 </span>
             </td>
         `;
@@ -627,6 +652,21 @@ function sortChecklistSection(sectionId, column) {
         let aVal, bVal;
         
         if (column === 'lot_name') {
+            // Extract numbers from lot names for proper numeric sorting
+            const extractNumber = (str) => {
+                const match = str.match(/\d+/);
+                return match ? parseInt(match[0]) : 0;
+            };
+            
+            const numA = extractNumber(a.lot.lot_name);
+            const numB = extractNumber(b.lot.lot_name);
+            
+            // If both have numbers, sort by number
+            if (numA && numB) {
+                return direction === 'asc' ? numA - numB : numB - numA;
+            }
+            
+            // Otherwise, use string comparison
             aVal = a.lot.lot_name.toLowerCase();
             bVal = b.lot.lot_name.toLowerCase();
             const result = aVal.localeCompare(bVal);
@@ -654,7 +694,7 @@ function sortChecklistSection(sectionId, column) {
             <td>${lotData.totalItems}</td>
             <td>
                 <span class="checklist-badge ${lotData.percentage === 100 ? 'checked' : 'unchecked'}">
-                    ${lotData.percentage === 100 ? 'Checked' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
+                    ${lotData.percentage === 100 ? 'Complete' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
                 </span>
             </td>
         `;
@@ -760,13 +800,15 @@ async function loadLotStats() {
             statusMap[key] = status;
         });
 
-        // Group items by lot
+
+        // Group items by lot and track user amounts
         const lotData = {};
         const uniqueParticipants = new Set();
 
         activeItems.forEach(item => {
             const lotName = item.lots?.lot_name || 'Unknown';
             const lotId = item.lots?.id || 'unknown';
+            const username = item.username;
             
             if (!lotData[lotName]) {
                 lotData[lotName] = {
@@ -776,39 +818,50 @@ async function loadLotStats() {
                     totalItems: 0,
                     deliveredUsers: new Set(),
                     totalPrice: 0,
-                    paidUsers: new Set()
+                    paidUsers: new Set(),
+                    userAmounts: {} // Track each user's total in this lot
                 };
             }
 
-            lotData[lotName].participants.add(item.username);
+            lotData[lotName].participants.add(username);
             lotData[lotName].totalItems++;
-            uniqueParticipants.add(item.username);
+            uniqueParticipants.add(username);
             
             const price = parseFloat(item.price) || 0;
             lotData[lotName].totalPrice += price;
 
+            // Track amount per user
+            if (!lotData[lotName].userAmounts[username]) {
+                lotData[lotName].userAmounts[username] = 0;
+            }
+            lotData[lotName].userAmounts[username] += price;
+
             // Check delivery and payment status for this user-lot combination
-            const statusKey = `${lotId}_${item.username}`;
+            const statusKey = `${lotId}_${username}`;
             const userStatus = statusMap[statusKey];
             
             if (userStatus) {
                 if (userStatus.delivery_status === 'Delivered') {
-                    lotData[lotName].deliveredUsers.add(item.username);
+                    lotData[lotName].deliveredUsers.add(username);
                 }
                 if (userStatus.payment_status === 'Paid') {
-                    lotData[lotName].paidUsers.add(item.username);
+                    lotData[lotName].paidUsers.add(username);
                 }
             }
         });
 
-        // Calculate totals
+        // Calculate totals based on actual user amounts
         let totalRevenue = 0;
         let totalPending = 0;
 
         Object.values(lotData).forEach(lot => {
-            // Rough estimate: revenue is based on paid users percentage
-            const paidPercentage = lot.participants.size > 0 ? lot.paidUsers.size / lot.participants.size : 0;
-            const revenue = lot.totalPrice * paidPercentage;
+            let revenue = 0;
+            
+            // Sum up amounts only for users marked as "Paid"
+            lot.paidUsers.forEach(username => {
+                revenue += lot.userAmounts[username] || 0;
+            });
+            
             const pending = lot.totalPrice - revenue;
             
             lot.revenue = revenue;
@@ -999,7 +1052,7 @@ async function loadPersonStats() {
             statusMap[key] = status;
         });
 
-        // Group items by user
+        // Group items by user and track amounts per lot
         const userData = {};
         let totalPaid = 0;
         let totalPending = 0;
@@ -1016,7 +1069,7 @@ async function loadPersonStats() {
                     lots: new Set(),
                     totalItems: 0,
                     totalPrice: 0,
-                    paidLots: new Set()
+                    lotAmounts: {} // Track amount per lot
                 };
             }
 
@@ -1026,20 +1079,38 @@ async function loadPersonStats() {
             const price = parseFloat(item.price) || 0;
             userData[username].totalPrice += price;
 
+            // Track amount per lot
+            const lotKey = `${lotId}`;
+            if (!userData[username].lotAmounts[lotKey]) {
+                userData[username].lotAmounts[lotKey] = {
+                    amount: 0,
+                    paid: false
+                };
+            }
+            userData[username].lotAmounts[lotKey].amount += price;
+
             // Check if user has paid for this lot
             const statusKey = `${lotId}_${username}`;
             const userStatus = statusMap[statusKey];
             
             if (userStatus && userStatus.payment_status === 'Paid') {
-                userData[username].paidLots.add(lotId);
+                userData[username].lotAmounts[lotKey].paid = true;
             }
         });
 
-        // Calculate paid and pending amounts
+        // Calculate paid and pending amounts based on actual lot amounts
         Object.values(userData).forEach(user => {
-            const paidPercentage = user.lots.size > 0 ? user.paidLots.size / user.lots.size : 0;
-            user.paid = user.totalPrice * paidPercentage;
-            user.pending = user.totalPrice - user.paid;
+            let paid = 0;
+            
+            // Sum up amounts only for lots marked as "Paid"
+            Object.values(user.lotAmounts).forEach(lot => {
+                if (lot.paid) {
+                    paid += lot.amount;
+                }
+            });
+            
+            user.paid = paid;
+            user.pending = user.totalPrice - paid;
             
             totalPaid += user.paid;
             totalPending += user.pending;
@@ -1060,12 +1131,16 @@ async function loadPersonStats() {
             figs: user.totalItems // Figs = Total Items
         }));
 
+        // Sort alphabetically by username (ascending) by default
+        personStatsData.sort((a, b) => a.username.localeCompare(b.username));
+
         // Reset sort to default
         currentSortColumn = 'username';
         currentSortDirection = 'asc';
         
         // Display with default sort
-        sortPersonTable('username');
+        updateSortIndicators('username', 'asc');
+        displayPersonStats(personStatsData);
 
     } catch (error) {
         console.error('Error loading person stats:', error);
@@ -1191,46 +1266,88 @@ async function loadReviewsForApproval() {
         
         if (!reviews || reviews.length === 0) {
             container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No reviews found</div>';
+            allReviewsData = [];
             return;
         }
         
-        container.innerHTML = '';
-        reviews.forEach(review => {
-            const card = document.createElement('div');
-            card.className = 'review-approval-card';
-            
-            const date = new Date(review.created_at).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-            
-            const isVisible = review.status === 'visible';
-            const toggleButton = isVisible 
-                ? `<button class="btn-hide" onclick="toggleReviewVisibility('${review.id}', 'hidden')">Hide</button>`
-                : `<button class="btn-show" onclick="toggleReviewVisibility('${review.id}', 'visible')">Show</button>`;
-            
-            card.innerHTML = `
-                <img src="${review.image_url}" alt="${review.username}'s review" class="review-approval-image" onclick="openReviewImagePreview('${review.image_url}', '${review.username}')">
-                <div class="review-approval-content">
-                    <div class="review-approval-user">
-                        <a href="person_view.html?username=${encodeURIComponent(review.username)}" class="username-link">${review.username}</a>
-                    </div>
-                    <div class="review-approval-date">Submitted: ${date}</div>
-                    <div class="review-approval-actions">
-                        ${toggleButton}
-                        <button class="btn-delete" onclick="deleteReviewAsAdmin('${review.id}', '${review.image_url}')">Delete</button>
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(card);
-        });
+        // Store reviews data for sorting
+        allReviewsData = reviews;
+        
+        // Apply current sort
+        sortReviews();
         
     } catch (error) {
         console.error('Error loading reviews:', error);
         container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load reviews</div>';
     }
+}
+
+// Sort reviews based on selected option
+function sortReviews() {
+    const sortValue = document.getElementById('reviewsSortSelect').value;
+    const container = document.getElementById('reviewsTableBody');
+    
+    if (!allReviewsData || allReviewsData.length === 0) {
+        return;
+    }
+    
+    let sortedReviews = [...allReviewsData];
+    
+    switch(sortValue) {
+        case 'date-desc':
+            sortedReviews.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            break;
+        case 'date-asc':
+            sortedReviews.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            break;
+        case 'username-asc':
+            sortedReviews.sort((a, b) => a.username.localeCompare(b.username));
+            break;
+        case 'username-desc':
+            sortedReviews.sort((a, b) => b.username.localeCompare(a.username));
+            break;
+    }
+    
+    // Render sorted reviews
+    displayReviews(sortedReviews);
+}
+
+// Display reviews in the container
+function displayReviews(reviews) {
+    const container = document.getElementById('reviewsTableBody');
+    container.innerHTML = '';
+    
+    reviews.forEach(review => {
+        const card = document.createElement('div');
+        card.className = 'review-approval-card';
+        
+        const date = new Date(review.created_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+        
+        const isVisible = review.status === 'visible';
+        const toggleButton = isVisible 
+            ? `<button class="btn-hide" onclick="toggleReviewVisibility('${review.id}', 'hidden')">Hide</button>`
+            : `<button class="btn-show" onclick="toggleReviewVisibility('${review.id}', 'visible')">Show</button>`;
+        
+        card.innerHTML = `
+            <img src="${review.image_url}" alt="${review.username}'s review" class="review-approval-image" onclick="openReviewImagePreview('${review.image_url}', '${review.username}')">
+            <div class="review-approval-content">
+                <div class="review-approval-user">
+                    <a href="person_view.html?username=${encodeURIComponent(review.username)}" class="username-link">${review.username}</a>
+                </div>
+                <div class="review-approval-date">Submitted: ${date}</div>
+                <div class="review-approval-actions">
+                    ${toggleButton}
+                    <button class="btn-delete" onclick="deleteReviewAsAdmin('${review.id}', '${review.image_url}')">Delete</button>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(card);
+    });
 }
 
 // Toggle review visibility (show/hide)
@@ -1530,5 +1647,903 @@ async function submitAdminAddReview() {
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Upload Review';
+    }
+}
+
+// ==============================================================
+// PAYMENT MANAGEMENT FUNCTIONS
+// ==============================================================
+
+let allPaymentsData = []; // Store all payments for search functionality
+let selectedPaymentLots = []; // Store selected lots for payment
+let selectedPaymentImages = []; // Store selected images for payment
+
+// Load all payments
+async function loadPayments() {
+    const container = document.getElementById('paymentsTableBody');
+    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">Loading payments...</div>';
+    
+    try {
+        const { data: payments, error} = await supabaseClient
+            .from('payment_history')
+            .select('*')
+            .order('payment_date', { ascending: false });
+        
+        if (error) throw error;
+        
+        allPaymentsData = payments || [];
+        displayPayments(allPaymentsData);
+        
+    } catch (error) {
+        console.error('Error loading payments:', error);
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load payments</div>';
+    }
+}
+
+// Display payments in table
+function displayPayments(payments) {
+    const container = document.getElementById('paymentsTableBody');
+    
+    if (!payments || payments.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No payments found</div>';
+        return;
+    }
+    
+    // Group payments by batch_id to show multiple lots together
+    const paymentGroups = {};
+    payments.forEach(payment => {
+        const batchId = payment.batch_id || payment.id;
+        if (!paymentGroups[batchId]) {
+            paymentGroups[batchId] = [];
+        }
+        paymentGroups[batchId].push(payment);
+    });
+    
+    let tableHTML = `
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Collector</th>
+                    <th>Lot Name(s)</th>
+                    <th>Amount</th>
+                    <th>Screenshots</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    Object.values(paymentGroups).forEach(group => {
+        const payment = group[0]; // Use first payment for common fields
+        const date = new Date(payment.payment_date).toLocaleDateString('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+        
+        // Collect all lot names
+        const lotNames = group.map(p => p.lot_name).join(', ');
+        
+        // Get images (they should be same for all in the batch)
+        const imageUrls = payment.image_urls || [];
+        let imagesHTML = '-';
+        if (imageUrls.length > 0) {
+            imagesHTML = `<div style="display: flex; gap: 4px; flex-wrap: wrap;">`;
+            imageUrls.forEach(url => {
+                imagesHTML += `<a href="${url}" target="_blank" style="display: block; width: 40px; height: 40px; overflow: hidden; border-radius: 4px; border: 1px solid #ddd;">
+                    <img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">
+                </a>`;
+            });
+            imagesHTML += `</div>`;
+        }
+        
+        // Store batch ID for edit
+        const batchId = payment.batch_id || payment.id;
+        
+        tableHTML += `
+            <tr>
+                <td>${date}</td>
+                <td>
+                    <a href="person_view.html?username=${encodeURIComponent(payment.username)}" class="username-link">
+                        ${payment.username}
+                    </a>
+                </td>
+                <td><strong>${lotNames}</strong></td>
+                <td style="color: #15803d; font-weight: 600;">₹${parseFloat(payment.amount).toFixed(2)}</td>
+                <td>${imagesHTML}</td>
+                <td>${payment.notes || '-'}</td>
+                <td>
+                    <button class="action-btn edit" onclick="openEditPaymentModal('${batchId}')" style="font-size: 0.85em; padding: 4px 8px; margin: 2px;">Edit</button>
+                    <button class="action-btn delete" onclick="deletePaymentBatchDirect('${batchId}')" style="font-size: 0.85em; padding: 4px 8px; margin: 2px;">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableHTML += `
+            </tbody>
+        </table>
+    `;
+    
+    container.innerHTML = tableHTML;
+}
+
+// Search payments
+function searchPayments() {
+    const searchTerm = document.getElementById('paymentSearchInput').value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        displayPayments(allPaymentsData);
+        return;
+    }
+    
+    const filteredPayments = allPaymentsData.filter(payment => {
+        const username = (payment.username || '').toLowerCase();
+        const lotName = (payment.lot_name || '').toLowerCase();
+        return username.includes(searchTerm) || lotName.includes(searchTerm);
+    });
+    
+    displayPayments(filteredPayments);
+}
+
+// Handle Enter key on collector name input to auto-complete
+function handlePaymentCollectorEnter(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission
+        event.stopPropagation(); // Stop event from bubbling
+        
+        const input = document.getElementById('paymentUsername');
+        const datalist = document.getElementById('paymentCollectorsList');
+        const currentValue = input.value.toLowerCase().trim();
+        
+        // If there's a partial match in the datalist, auto-complete with the first match
+        if (currentValue && datalist.options.length > 0) {
+            for (let i = 0; i < datalist.options.length; i++) {
+                const option = datalist.options[i].value;
+                if (option.toLowerCase().startsWith(currentValue)) {
+                    input.value = option; // Auto-complete with first match
+                    break;
+                }
+            }
+        }
+        
+        // Move focus to lot name input
+        setTimeout(() => {
+            document.getElementById('paymentLotNameInput').focus();
+        }, 0);
+        
+        return false; // Additional prevention
+    }
+}
+
+// Handle Enter key on lot name input to auto-complete and add
+function handlePaymentLotEnter(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission
+        event.stopPropagation(); // Stop event from bubbling
+        
+        const input = document.getElementById('paymentLotNameInput');
+        const datalist = document.getElementById('paymentLotsList');
+        const currentValue = input.value.toLowerCase().trim();
+        
+        // If there's a partial match in the datalist, auto-complete with the first match
+        if (currentValue && datalist.options.length > 0) {
+            for (let i = 0; i < datalist.options.length; i++) {
+                const option = datalist.options[i].value;
+                if (option.toLowerCase().startsWith(currentValue)) {
+                    input.value = option; // Auto-complete with first match
+                    break;
+                }
+            }
+        }
+        
+        // Add the lot to the list
+        setTimeout(() => {
+            autoAddLotFromDropdown();
+            // Keep focus on lot name input for adding more lots
+            input.focus();
+        }, 0);
+        
+        return false; // Additional prevention
+    }
+}
+
+// Open add payment modal
+async function openAddPaymentModal() {
+    try {
+        // Reset selected lots and images
+        selectedPaymentLots = [];
+        selectedPaymentImages = [];
+        document.getElementById('selectedLotsList').innerHTML = '';
+        document.getElementById('paymentImagesPreview').innerHTML = '<span style="color: #999; font-size: 0.8rem; pointer-events: none;">Paste images anywhere in this form (Ctrl+V)</span>';
+        
+        // Attach global paste listener when modal opens
+        document.addEventListener('paste', handlePaymentImagePaste);
+        
+        // Fetch all users
+        const { data: users, error: usersError } = await supabaseClient
+            .from('users')
+            .select('username')
+            .order('username', { ascending: true });
+        
+        if (usersError) throw usersError;
+        
+        // Populate collectors datalist
+        const collectorsList = document.getElementById('paymentCollectorsList');
+        collectorsList.innerHTML = '';
+        (users || []).forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.username;
+            collectorsList.appendChild(option);
+        });
+        
+        // Fetch all lots
+        const { data: lots, error: lotsError } = await supabaseClient
+            .from('lots')
+            .select('lot_name');
+        
+        if (lotsError) throw lotsError;
+        
+        // Sort lots numerically
+        const sortedLots = (lots || []).sort((a, b) => {
+            const numA = parseInt(a.lot_name.match(/\d+/));
+            const numB = parseInt(b.lot_name.match(/\d+/));
+            
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.lot_name.localeCompare(b.lot_name);
+        });
+        
+        // Populate lots datalist with special options first
+        const lotsList = document.getElementById('paymentLotsList');
+        lotsList.innerHTML = '';
+        
+        // Add special options
+        const specialOptions = ['Others', 'Old Lot', 'Shipping'];
+        specialOptions.forEach(optionText => {
+            const option = document.createElement('option');
+            option.value = optionText;
+            lotsList.appendChild(option);
+        });
+        
+        // Add regular lots (numerically sorted)
+        sortedLots.forEach(lot => {
+            const option = document.createElement('option');
+            option.value = lot.lot_name;
+            lotsList.appendChild(option);
+        });
+        
+        // Set default date to today
+        document.getElementById('paymentDate').valueAsDate = new Date();
+        
+        document.getElementById('addPaymentModal').style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error opening add payment modal:', error);
+        alert('Failed to open add payment modal: ' + error.message);
+    }
+}
+
+// Auto-add lot from dropdown when selected
+function autoAddLotFromDropdown() {
+    const input = document.getElementById('paymentLotNameInput');
+    const lotName = input.value.trim();
+    
+    if (!lotName) return;
+    
+    // Check if already added
+    if (selectedPaymentLots.includes(lotName)) {
+        alert('This lot is already added');
+        input.value = '';
+        return;
+    }
+    
+    selectedPaymentLots.push(lotName);
+    input.value = '';
+    
+    renderSelectedLots();
+}
+
+// Add lot to payment (kept for compatibility)
+function addLotToPayment() {
+    autoAddLotFromDropdown();
+}
+
+// Render selected lots
+function renderSelectedLots() {
+    const container = document.getElementById('selectedLotsList');
+    
+    if (selectedPaymentLots.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = selectedPaymentLots.map((lot, index) => `
+        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: #e0f2fe; border-radius: 4px; border: 1px solid #0ea5e9;">
+            <strong style="color: #0369a1; font-size: 0.85rem;">${lot}</strong>
+            <button type="button" onclick="removeLotFromPayment(${index})" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 1.1em; line-height: 1; padding: 0 2px;">&times;</button>
+        </div>
+    `).join('');
+}
+
+// Remove lot from payment
+function removeLotFromPayment(index) {
+    selectedPaymentLots.splice(index, 1);
+    renderSelectedLots();
+}
+
+// Handle payment image paste
+function handlePaymentImagePaste(event) {
+    // Only handle paste if the payment modal is open
+    const modal = document.getElementById('addPaymentModal');
+    if (!modal || modal.style.display !== 'block') {
+        return;
+    }
+    
+    event.preventDefault();
+    
+    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+    
+    let hasImage = false;
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+            const file = item.getAsFile();
+            if (file) {
+                addPaymentImage(file);
+                hasImage = true;
+            }
+        }
+    }
+    
+    if (hasImage) {
+        console.log('Image pasted successfully!');
+    } else {
+        console.log('No image found in clipboard');
+    }
+}
+
+// Handle payment image file selection
+function handlePaymentImageSelect(event) {
+    const files = event.target.files;
+    
+    for (let file of files) {
+        addPaymentImage(file);
+    }
+}
+
+// Add payment image to preview
+function addPaymentImage(file) {
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const imageData = {
+            file: file,
+            dataUrl: e.target.result
+        };
+        
+        selectedPaymentImages.push(imageData);
+        renderPaymentImagesPreview();
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+// Render payment images preview
+function renderPaymentImagesPreview() {
+    const container = document.getElementById('paymentImagesPreview');
+    
+    if (selectedPaymentImages.length === 0) {
+        container.innerHTML = '<span style="color: #999; font-size: 0.8rem; pointer-events: none;">Paste images anywhere in this form (Ctrl+V)</span>';
+        return;
+    }
+    
+    container.innerHTML = selectedPaymentImages.map((img, index) => `
+        <div style="position: relative; width: 60px; height: 60px;">
+            <img src="${img.dataUrl}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;">
+            <button type="button" onclick="removePaymentImage(${index})" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: #dc2626; color: white; border: none; cursor: pointer; font-size: 0.85em; line-height: 1; display: flex; align-items: center; justify-content: center;">&times;</button>
+        </div>
+    `).join('');
+}
+
+// Remove payment image
+function removePaymentImage(index) {
+    selectedPaymentImages.splice(index, 1);
+    renderPaymentImagesPreview();
+}
+
+// Close add payment modal
+function closeAddPaymentModal() {
+    // Remove global paste listener
+    document.removeEventListener('paste', handlePaymentImagePaste);
+    
+    document.getElementById('addPaymentModal').style.display = 'none';
+    document.getElementById('addPaymentForm').reset();
+    selectedPaymentLots = [];
+    selectedPaymentImages = [];
+    document.getElementById('selectedLotsList').innerHTML = '';
+    document.getElementById('paymentImagesPreview').innerHTML = '<span style="color: #999; font-size: 0.8rem; pointer-events: none;">Paste images anywhere in this form (Ctrl+V)</span>';
+}
+
+// Submit payment
+async function submitPayment() {
+    const username = document.getElementById('paymentUsername').value.trim();
+    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const paymentDate = document.getElementById('paymentDate').value;
+    const notes = document.getElementById('paymentNotes').value.trim();
+    
+    if (!username || selectedPaymentLots.length === 0 || !amount || !paymentDate) {
+        alert('Please fill in all required fields and add at least one lot');
+        return;
+    }
+    
+    const submitBtn = document.querySelector('#addPaymentForm button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Uploading...';
+    
+    try {
+        // Get user ID
+        const { data: userData, error: userError } = await supabaseClient
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .single();
+        
+        if (userError) throw new Error('User not found');
+        
+        // Upload images to Cloudinary if any
+        const imageUrls = [];
+        if (selectedPaymentImages.length > 0) {
+            submitBtn.textContent = `Uploading images (0/${selectedPaymentImages.length})...`;
+            
+            for (let i = 0; i < selectedPaymentImages.length; i++) {
+                const img = selectedPaymentImages[i];
+                submitBtn.textContent = `Uploading images (${i + 1}/${selectedPaymentImages.length})...`;
+                
+                const formData = new FormData();
+                formData.append('file', img.file);
+                formData.append('upload_preset', 'bh_smry_upload');
+                
+                const response = await fetch(`https://api.cloudinary.com/v1_1/daye1yfzy/image/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) throw new Error('Image upload failed');
+                
+                const data = await response.json();
+                imageUrls.push(data.secure_url);
+            }
+        }
+        
+        // Get current admin username
+        const currentUser = getCurrentUser();
+        
+        // Generate a batch ID for this payment group
+        const batchId = crypto.randomUUID();
+        
+        // Insert payment records for each lot
+        submitBtn.textContent = 'Saving payment records...';
+        const paymentRecords = [];
+        
+        for (const lotName of selectedPaymentLots) {
+            // Check if it's a special option (Others, Old Lot, Shipping)
+            const specialOptions = ['Others', 'Old Lot', 'Shipping'];
+            let lotId = null;
+            
+            if (!specialOptions.includes(lotName)) {
+                // Get lot ID for regular lots
+                const { data: lotData, error: lotError } = await supabaseClient
+                    .from('lots')
+                    .select('id')
+                    .eq('lot_name', lotName)
+                    .single();
+                
+                if (lotError) {
+                    console.warn(`Lot "${lotName}" not found, skipping...`);
+                    continue;
+                }
+                lotId = lotData.id;
+            }
+            
+            paymentRecords.push({
+                user_id: userData.id,
+                username: username,
+                lot_id: lotId, // null for special options
+                lot_name: lotName,
+                amount: amount,
+                payment_date: paymentDate,
+                notes: notes || null,
+                image_urls: imageUrls.length > 0 ? imageUrls : null,
+                batch_id: batchId,
+                created_by: currentUser.username
+            });
+        }
+        
+        if (paymentRecords.length === 0) {
+            throw new Error('No valid lots found');
+        }
+        
+        // Insert all payment records
+        const { error: insertError } = await supabaseClient
+            .from('payment_history')
+            .insert(paymentRecords);
+        
+        if (insertError) throw insertError;
+        
+        alert(`✅ Payment added successfully for ${paymentRecords.length} lot(s)!`);
+        closeAddPaymentModal();
+        loadPayments();
+        
+    } catch (error) {
+        console.error('Error adding payment:', error);
+        alert('Failed to add payment: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add Payment';
+    }
+}
+
+let editSelectedPaymentLots = []; // Store selected lots for edit
+
+// Open edit payment modal
+async function openEditPaymentModal(batchId) {
+    try {
+        // Find all payments with this batch_id
+        const paymentsInBatch = allPaymentsData.filter(p => (p.batch_id || p.id) === batchId);
+        
+        if (paymentsInBatch.length === 0) {
+            alert('Payment not found');
+            return;
+        }
+        
+        const firstPayment = paymentsInBatch[0];
+        
+        // Populate form
+        document.getElementById('editPaymentBatchId').value = batchId;
+        document.getElementById('editPaymentUsername').value = firstPayment.username;
+        document.getElementById('editPaymentAmount').value = firstPayment.amount;
+        document.getElementById('editPaymentDate').value = firstPayment.payment_date;
+        document.getElementById('editPaymentNotes').value = firstPayment.notes || '';
+        
+        // Display collector name (read-only)
+        document.getElementById('editPaymentCollector').textContent = firstPayment.username;
+        
+        // Set selected lots
+        editSelectedPaymentLots = paymentsInBatch.map(p => p.lot_name);
+        renderEditSelectedLots();
+        
+        // Load lots datalist
+        const { data: lots, error: lotsError } = await supabaseClient
+            .from('lots')
+            .select('lot_name');
+        
+        if (!lotsError) {
+            // Sort lots numerically
+            const sortedLots = (lots || []).sort((a, b) => {
+                const numA = parseInt(a.lot_name.match(/\d+/));
+                const numB = parseInt(b.lot_name.match(/\d+/));
+                
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB;
+                }
+                return a.lot_name.localeCompare(b.lot_name);
+            });
+            
+            const lotsList = document.getElementById('editPaymentLotsList');
+            lotsList.innerHTML = '';
+            
+            // Add special options
+            const specialOptions = ['Others', 'Old Lot', 'Shipping'];
+            specialOptions.forEach(optionText => {
+                const option = document.createElement('option');
+                option.value = optionText;
+                lotsList.appendChild(option);
+            });
+            
+            // Add regular lots
+            sortedLots.forEach(lot => {
+                const option = document.createElement('option');
+                option.value = lot.lot_name;
+                lotsList.appendChild(option);
+            });
+        }
+        
+        document.getElementById('editPaymentModal').style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error opening edit payment modal:', error);
+        alert('Failed to open edit payment modal: ' + error.message);
+    }
+}
+
+// Add lot to edit
+function addLotToEdit() {
+    const input = document.getElementById('editPaymentLotNameInput');
+    const lotName = input.value.trim();
+    
+    if (!lotName) return;
+    
+    // Check if already added
+    if (editSelectedPaymentLots.includes(lotName)) {
+        alert('This lot is already added');
+        input.value = '';
+        return;
+    }
+    
+    editSelectedPaymentLots.push(lotName);
+    input.value = '';
+    
+    renderEditSelectedLots();
+}
+
+// Handle Enter key on edit lot name input
+function handleEditLotEnter(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const input = document.getElementById('editPaymentLotNameInput');
+        const datalist = document.getElementById('editPaymentLotsList');
+        const currentValue = input.value.toLowerCase().trim();
+        
+        // Auto-complete with the first match
+        if (currentValue && datalist.options.length > 0) {
+            for (let i = 0; i < datalist.options.length; i++) {
+                const option = datalist.options[i].value;
+                if (option.toLowerCase().startsWith(currentValue)) {
+                    input.value = option;
+                    break;
+                }
+            }
+        }
+        
+        // Add the lot
+        setTimeout(() => {
+            addLotToEdit();
+            input.focus();
+        }, 0);
+        
+        return false;
+    }
+}
+
+// Render edit selected lots
+function renderEditSelectedLots() {
+    const container = document.getElementById('editSelectedLotsList');
+    
+    if (editSelectedPaymentLots.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = editSelectedPaymentLots.map((lot, index) => `
+        <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: #e0f2fe; border-radius: 4px; border: 1px solid #0ea5e9;">
+            <strong style="color: #0369a1; font-size: 0.85rem;">${lot}</strong>
+            <button type="button" onclick="removeLotFromEdit(${index})" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 1.1em; line-height: 1; padding: 0 2px;">&times;</button>
+        </div>
+    `).join('');
+}
+
+// Remove lot from edit
+function removeLotFromEdit(index) {
+    editSelectedPaymentLots.splice(index, 1);
+    renderEditSelectedLots();
+}
+
+// Close edit payment modal
+function closeEditPaymentModal() {
+    document.getElementById('editPaymentModal').style.display = 'none';
+    document.getElementById('editPaymentForm').reset();
+    editSelectedPaymentLots = [];
+    document.getElementById('editSelectedLotsList').innerHTML = '';
+}
+
+// Update payment
+async function updatePayment() {
+    const batchId = document.getElementById('editPaymentBatchId').value;
+    const username = document.getElementById('editPaymentUsername').value;
+    const amount = parseFloat(document.getElementById('editPaymentAmount').value);
+    const paymentDate = document.getElementById('editPaymentDate').value;
+    const notes = document.getElementById('editPaymentNotes').value.trim();
+    
+    if (!batchId || !amount || !paymentDate || editSelectedPaymentLots.length === 0) {
+        alert('Please fill in all required fields and add at least one lot');
+        return;
+    }
+    
+    const submitBtn = document.querySelector('#editPaymentForm button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating...';
+    
+    try {
+        // Get user ID
+        const { data: userData, error: userError } = await supabaseClient
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .single();
+        
+        if (userError) throw new Error('User not found');
+        
+        // Delete old payment records in this batch
+        const { error: deleteError } = await supabaseClient
+            .from('payment_history')
+            .delete()
+            .eq('batch_id', batchId);
+        
+        if (deleteError) throw deleteError;
+        
+        // Get current admin username
+        const currentUser = getCurrentUser();
+        
+        // Insert new payment records for each lot
+        const paymentRecords = [];
+        
+        for (const lotName of editSelectedPaymentLots) {
+            // Check if it's a special option
+            const specialOptions = ['Others', 'Old Lot', 'Shipping'];
+            let lotId = null;
+            
+            if (!specialOptions.includes(lotName)) {
+                // Get lot ID for regular lots
+                const { data: lotData, error: lotError } = await supabaseClient
+                    .from('lots')
+                    .select('id')
+                    .eq('lot_name', lotName)
+                    .single();
+                
+                if (lotError) {
+                    console.warn(`Lot "${lotName}" not found, skipping...`);
+                    continue;
+                }
+                lotId = lotData.id;
+            }
+            
+            paymentRecords.push({
+                user_id: userData.id,
+                username: username,
+                lot_id: lotId,
+                lot_name: lotName,
+                amount: amount,
+                payment_date: paymentDate,
+                notes: notes || null,
+                batch_id: batchId, // Keep the same batch_id
+                created_by: currentUser.username
+            });
+        }
+        
+        if (paymentRecords.length === 0) {
+            throw new Error('No valid lots found');
+        }
+        
+        // Insert updated payment records
+        const { error: insertError } = await supabaseClient
+            .from('payment_history')
+            .insert(paymentRecords);
+        
+        if (insertError) throw insertError;
+        
+        closeEditPaymentModal();
+        loadPayments();
+        
+    } catch (error) {
+        console.error('Error updating payment:', error);
+        alert('Failed to update payment: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Payment';
+    }
+}
+
+// Delete payment batch (from edit modal)
+async function deletePaymentBatch() {
+    if (!confirm('Are you sure you want to delete this entire payment record? This cannot be undone.')) return;
+    
+    const batchId = document.getElementById('editPaymentBatchId').value;
+    
+    try {
+        // Delete all payments in this batch (using only batch_id)
+        const { error } = await supabaseClient
+            .from('payment_history')
+            .delete()
+            .eq('batch_id', batchId);
+        
+        if (error) throw error;
+        
+        closeEditPaymentModal();
+        loadPayments();
+        
+    } catch (error) {
+        console.error('Error deleting payment:', error);
+        alert('Failed to delete payment: ' + error.message);
+    }
+}
+
+// Delete payment batch directly from table
+async function deletePaymentBatchDirect(batchId) {
+    if (!confirm('Are you sure you want to delete this payment record? This cannot be undone.')) return;
+    
+    try {
+        // Delete all payments in this batch (using only batch_id)
+        const { error } = await supabaseClient
+            .from('payment_history')
+            .delete()
+            .eq('batch_id', batchId);
+        
+        if (error) throw error;
+        
+        loadPayments();
+        
+    } catch (error) {
+        console.error('Error deleting payment:', error);
+        alert('Failed to delete payment: ' + error.message);
+    }
+}
+
+// Delete all payment history
+async function deleteAllPaymentHistory() {
+    const confirmMsg = 'WARNING: This will delete ALL payment records permanently!\n\nType "DELETE ALL" to confirm:';
+    const userInput = prompt(confirmMsg);
+    
+    if (userInput !== 'DELETE ALL') {
+        if (userInput !== null) {
+            alert('Deletion cancelled. You must type "DELETE ALL" exactly to confirm.');
+        }
+        return;
+    }
+    
+    // Double confirmation
+    if (!confirm('Are you ABSOLUTELY SURE? This action CANNOT be undone!')) {
+        return;
+    }
+    
+    try {
+        const { error } = await supabaseClient
+            .from('payment_history')
+            .delete()
+            .neq('id', 0); // Delete all records
+        
+        if (error) throw error;
+        
+        alert('✅ All payment history has been deleted');
+        loadPayments();
+        
+    } catch (error) {
+        console.error('Error deleting all payment history:', error);
+        alert('Failed to delete payment history: ' + error.message);
+    }
+}
+
+// Delete payment (kept for compatibility)
+async function deletePayment(paymentId) {
+    if (!confirm('Are you sure you want to delete this payment record?')) return;
+    
+    try {
+        // First, get the payment details before deleting
+        const { data: payment, error: fetchError } = await supabaseClient
+            .from('payment_history')
+            .select('*')
+            .eq('id', paymentId)
+            .single();
+        
+        if (fetchError) throw fetchError;
+        
+        const { error } = await supabaseClient
+            .from('payment_history')
+            .delete()
+            .eq('id', paymentId);
+        
+        if (error) throw error;
+        
+        alert('✅ Payment deleted successfully!');
+        loadPayments();
+        
+    } catch (error) {
+        console.error('Error deleting payment:', error);
+        alert('Failed to delete payment: ' + error.message);
     }
 }

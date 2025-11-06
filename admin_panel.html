@@ -53,7 +53,11 @@
                     <span class="menu-icon">●</span>
                     <span class="menu-text">Reviews</span>
                 </div>
-            </div>
+                <div class="menu-item" onclick="switchSection('payments')">
+                    <span class="menu-icon">●</span>
+                    <span class="menu-text">Payment Management</span>
+                </div>
+        </div>
         </aside>
 
         <!-- Main Content Area -->
@@ -62,27 +66,27 @@
             <section id="usersSection" class="content-section active">
                 <div class="section-header">
                     <h1>Collector Management</h1>
-                </div>
+        </div>
 
-                <div class="users-container">
+        <div class="users-container">
                     <div class="search-and-add">
                         <input type="text" id="searchInput" placeholder="Search by collector or number..." onkeyup="searchUsers()">
                         <button onclick="openAddUserModal()" class="btn btn-primary">+ Add New Collector</button>
-                    </div>
-                    <table class="users-table">
-                        <thead>
-                            <tr>
+            </div>
+            <table class="users-table">
+                <thead>
+                    <tr>
                                 <th>Collector</th>
-                                <th>Number</th>
-                                <th>Access Level</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <!-- Users will be loaded here -->
-                        </tbody>
-                    </table>
-                </div>
+                        <th>Number</th>
+                        <th>Access Level</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <!-- Users will be loaded here -->
+                </tbody>
+            </table>
+        </div>
             </section>
 
             <!-- Stats Section -->
@@ -238,12 +242,41 @@
             <section id="reviewsSection" class="content-section">
                 <div class="section-header">
                     <h1>Reviews</h1>
-                    <button class="btn btn-primary" onclick="openAdminAddReviewModal()">+ Add Review</button>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <label style="font-size: 0.875rem; font-weight: 500; color: var(--text-secondary);">Sort by:</label>
+                        <select id="reviewsSortSelect" onchange="sortReviews()" style="padding: 8px 12px; border: 1px solid var(--light-gray); border-radius: 6px; font-size: 0.875rem; cursor: pointer;">
+                            <option value="date-desc">Date (Newest First)</option>
+                            <option value="date-asc">Date (Oldest First)</option>
+                            <option value="username-asc">User (A-Z)</option>
+                            <option value="username-desc">User (Z-A)</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="openAdminAddReviewModal()">+ Add Review</button>
+                    </div>
                 </div>
 
                 <div class="users-container">
                     <div id="reviewsTableBody" class="reviews-approval-grid">
                         <!-- Reviews will be loaded here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Payment Management Section -->
+            <section id="paymentsSection" class="content-section">
+                <div class="section-header">
+                    <h1>Payment Management</h1>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" onclick="openAddPaymentModal()">+ Add Payment</button>
+                        <button class="btn btn-secondary" onclick="deleteAllPaymentHistory()" style="background: #ef4444; color: white; border-color: #ef4444;">Clear All History</button>
+                    </div>
+                </div>
+
+                <div class="users-container">
+                    <div class="search-and-add" style="margin-bottom: 20px;">
+                        <input type="text" id="paymentSearchInput" placeholder="Search by collector or lot..." onkeyup="searchPayments()">
+                    </div>
+                    <div id="paymentsTableBody">
+                        <!-- Payments will be loaded here -->
                     </div>
                 </div>
             </section>
@@ -373,6 +406,135 @@
                     <div class="form-actions">
                         <button type="button" onclick="closeAdminAddReviewModal()" class="btn btn-secondary">Cancel</button>
                         <button type="submit" class="btn btn-primary">Upload Review</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Payment Modal -->
+    <div id="addPaymentModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="padding: 12px 20px;">
+                <h2 style="font-size: 1.3rem; margin: 0;">Add Payment</h2>
+                <button class="close" onclick="closeAddPaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 16px 20px;">
+                <form id="addPaymentForm" onsubmit="event.preventDefault(); submitPayment();">
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="paymentUsername" style="font-size: 0.9rem; margin-bottom: 4px;">Collector Name:</label>
+                            <input type="text" id="paymentUsername" list="paymentCollectorsList" required placeholder="Enter or select" autocomplete="off" style="padding: 6px 10px; font-size: 0.9rem; width: 100%;" onkeydown="handlePaymentCollectorEnter(event)">
+                            <datalist id="paymentCollectorsList">
+                                <!-- Collectors will be loaded here -->
+                            </datalist>
+                        </div>
+                        
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label style="font-size: 0.9rem; margin-bottom: 4px;">Lot Names: <span style="font-weight: normal; font-size: 0.85em;">(Select to add)</span></label>
+                            <input type="text" id="paymentLotNameInput" list="paymentLotsList" placeholder="Select lot name" autocomplete="off" style="width: 100%; padding: 6px 10px; font-size: 0.9rem;" onchange="autoAddLotFromDropdown()" onkeydown="handlePaymentLotEnter(event)">
+                            <datalist id="paymentLotsList">
+                                <!-- Lots will be loaded here -->
+                            </datalist>
+                        </div>
+                    </div>
+                    
+                    <div id="selectedLotsList" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+                        <!-- Selected lots will appear here -->
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="paymentAmount" style="font-size: 0.9rem; margin-bottom: 4px;">Total Amount (₹): <span style="font-weight: normal; font-size: 0.85em;">(for all lots)</span></label>
+                            <input type="number" id="paymentAmount" step="0.01" min="0" required placeholder="Enter total amount" style="padding: 6px 10px; font-size: 0.9rem; width: 100%;">
+                        </div>
+                        
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="paymentDate" style="font-size: 0.9rem; margin-bottom: 4px;">Payment Date:</label>
+                            <input type="date" id="paymentDate" required style="padding: 6px 10px; font-size: 0.9rem; width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label style="font-size: 0.9rem; margin-bottom: 4px;">Screenshots: <span style="font-weight: normal; font-size: 0.85em;">(Optional)</span></label>
+                        <div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: center;">
+                            <input type="file" id="paymentImageFile" accept="image/*" multiple style="display: none;" onchange="handlePaymentImageSelect(event)">
+                            <button type="button" onclick="document.getElementById('paymentImageFile').click()" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.85rem;">Choose Files</button>
+                            <span style="font-size: 0.8rem; color: #666;">or paste below</span>
+                        </div>
+                        <div id="paymentImagesPreview" 
+                             style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border: 2px dashed #ddd; border-radius: 4px; min-height: 50px; align-items: center; justify-content: center;">
+                            <span style="color: #999; font-size: 0.8rem; pointer-events: none;">Paste images anywhere in this form (Ctrl+V)</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="paymentNotes" style="font-size: 0.9rem; margin-bottom: 4px;">Notes (optional):</label>
+                        <textarea id="paymentNotes" rows="2" placeholder="Enter any notes" style="padding: 6px 10px; font-size: 0.9rem;"></textarea>
+                    </div>
+                    
+                    <div class="form-actions" style="margin-top: 16px; gap: 8px;">
+                        <button type="button" onclick="closeAddPaymentModal()" class="btn btn-secondary" style="padding: 6px 16px; font-size: 0.9rem;">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="padding: 6px 16px; font-size: 0.9rem;">Add Payment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Payment Modal -->
+    <div id="editPaymentModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header" style="padding: 12px 20px;">
+                <h2 style="font-size: 1.3rem; margin: 0;">Edit Payment</h2>
+                <button class="close" onclick="closeEditPaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 16px 20px;">
+                <form id="editPaymentForm" onsubmit="event.preventDefault(); updatePayment();">
+                    <input type="hidden" id="editPaymentBatchId">
+                    <input type="hidden" id="editPaymentUsername">
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label style="font-size: 0.9rem; margin-bottom: 4px;">Collector:</label>
+                        <div id="editPaymentCollector" style="padding: 8px; background: #f9fafb; border-radius: 4px; font-size: 0.9rem; font-weight: 600;">
+                            <!-- Collector name will be displayed here -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label style="font-size: 0.9rem; margin-bottom: 4px;">Lot Names: <span style="font-weight: normal; font-size: 0.85em;">(Select to add/remove)</span></label>
+                        <input type="text" id="editPaymentLotNameInput" list="editPaymentLotsList" placeholder="Select lot name" autocomplete="off" style="width: 100%; padding: 6px 10px; font-size: 0.9rem;" onchange="addLotToEdit()" onkeydown="handleEditLotEnter(event)">
+                        <datalist id="editPaymentLotsList">
+                            <!-- Lots will be loaded here -->
+                        </datalist>
+                        <div id="editSelectedLotsList" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+                            <!-- Selected lots will appear here -->
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="editPaymentAmount" style="font-size: 0.9rem; margin-bottom: 4px;">Total Amount (₹): <span style="font-weight: normal; font-size: 0.85em;">(for all lots)</span></label>
+                            <input type="number" id="editPaymentAmount" step="0.01" min="0" required placeholder="Enter total amount" style="padding: 6px 10px; font-size: 0.9rem; width: 100%;">
+                        </div>
+                        
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="editPaymentDate" style="font-size: 0.9rem; margin-bottom: 4px;">Payment Date:</label>
+                            <input type="date" id="editPaymentDate" required style="padding: 6px 10px; font-size: 0.9rem; width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="editPaymentNotes" style="font-size: 0.9rem; margin-bottom: 4px;">Notes (optional):</label>
+                        <textarea id="editPaymentNotes" rows="2" placeholder="Enter any notes" style="padding: 6px 10px; font-size: 0.9rem;"></textarea>
+                    </div>
+                    
+                    <div class="form-actions" style="margin-top: 16px; gap: 8px; display: flex; justify-content: space-between;">
+                        <button type="button" onclick="deletePaymentBatch()" class="btn btn-secondary" style="padding: 6px 16px; font-size: 0.9rem; background: #ef4444; color: white;">Delete</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" onclick="closeEditPaymentModal()" class="btn btn-secondary" style="padding: 6px 16px; font-size: 0.9rem;">Cancel</button>
+                            <button type="submit" class="btn btn-primary" style="padding: 6px 16px; font-size: 0.9rem;">Update Payment</button>
+                        </div>
                     </div>
                 </form>
             </div>

@@ -521,6 +521,36 @@ function openAddModal(prefilledUsername = '') {
     }, 100);
 }
 
+// Handle Enter key in collector input - select first dropdown option then move to price
+function handleCollectorEnter(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission
+        event.stopPropagation(); // Stop event from bubbling
+        
+        const input = document.getElementById('newUsername');
+        const datalist = document.getElementById('usernames');
+        const currentValue = input.value.toLowerCase().trim();
+        
+        // If there's a partial match in the datalist, auto-complete with the first match
+        if (currentValue && datalist.options.length > 0) {
+            for (let i = 0; i < datalist.options.length; i++) {
+                const option = datalist.options[i].value;
+                if (option.toLowerCase().startsWith(currentValue)) {
+                    input.value = option; // Auto-complete with first match
+                    break;
+                }
+            }
+        }
+        
+        // Use setTimeout to ensure focus shift happens after any validation
+        setTimeout(() => {
+            document.getElementById('newPrice').focus();
+        }, 0);
+        
+        return false; // Additional prevention
+    }
+}
+
 function closeAddModal() {
     document.getElementById('addModal').style.display = 'none';
     document.getElementById('addItemForm').reset();

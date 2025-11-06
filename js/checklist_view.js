@@ -64,7 +64,7 @@ async function loadChecklistItems() {
     try {
         const { data, error } = await supabaseClient
             .from('items')
-            .select('id, picture_url, checked, created_at')
+            .select('id, picture_url, checked, checklist_status, created_at')
             .eq('lot_id', currentLot.id)
             .order('created_at', { ascending: true });
 
@@ -101,13 +101,19 @@ function renderChecklist() {
     checklistItems.forEach((item, index) => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'checklist-item';
-        if (item.checked) {
+        
+        // Get status: use checklist_status if available, fallback to checked boolean
+        const status = item.checklist_status || (item.checked ? 'checked' : 'unchecked');
+        
+        if (status === 'checked') {
             itemDiv.classList.add('checked');
+        } else if (status === 'rejected') {
+            itemDiv.classList.add('rejected');
         }
         
         // Use picture_url if available, otherwise show a placeholder message
         const imageUrl = item.picture_url || '';
-        console.log(`Item ${index + 1}:`, item.id, 'Image URL:', imageUrl);
+        console.log(`Item ${index + 1}:`, item.id, 'Image URL:', imageUrl, 'Status:', status);
         
         itemDiv.innerHTML = `
             <div class="item-image-container">
@@ -115,6 +121,9 @@ function renderChecklist() {
             </div>
             <div class="checked-overlay">
                 <div class="check-icon">✓</div>
+            </div>
+            <div class="rejected-overlay">
+                <div class="reject-icon">✕</div>
             </div>
         `;
         
@@ -124,23 +133,38 @@ function renderChecklist() {
     });
 }
 
-// Toggle checked status
+// Toggle checked status - cycles through unchecked → checked → rejected → unchecked
 async function toggleChecked(itemId) {
     try {
         const item = checklistItems.find(i => i.id === itemId);
         if (!item) return;
         
-        const newCheckedStatus = !item.checked;
+        // Get current status
+        const currentStatus = item.checklist_status || (item.checked ? 'checked' : 'unchecked');
+        
+        // Cycle through states: unchecked → checked → rejected → unchecked
+        let newStatus;
+        if (currentStatus === 'unchecked' || !currentStatus) {
+            newStatus = 'checked';
+        } else if (currentStatus === 'checked') {
+            newStatus = 'rejected';
+        } else { // rejected
+            newStatus = 'unchecked';
+        }
         
         const { error } = await supabaseClient
             .from('items')
-            .update({ checked: newCheckedStatus })
+            .update({ 
+                checklist_status: newStatus,
+                checked: newStatus === 'checked' // Keep checked boolean for backward compatibility
+            })
             .eq('id', itemId);
         
         if (error) throw error;
         
         // Update local data
-        item.checked = newCheckedStatus;
+        item.checklist_status = newStatus;
+        item.checked = (newStatus === 'checked');
         
         // Re-render
         renderChecklist();
@@ -164,7 +188,10 @@ async function checkAllItems() {
         
         const { error } = await supabaseClient
             .from('items')
-            .update({ checked: true })
+            .update({ 
+                checked: true,
+                checklist_status: 'checked'
+            })
             .in('id', itemIds);
         
         if (error) throw error;
@@ -184,7 +211,10 @@ async function resetAllItems() {
         
         const { error } = await supabaseClient
             .from('items')
-            .update({ checked: false })
+            .update({ 
+                checked: false,
+                checklist_status: 'unchecked'
+            })
             .in('id', itemIds);
         
         if (error) throw error;
