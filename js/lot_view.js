@@ -407,17 +407,22 @@ async function generatePNG() {
     const allImages = gallery.querySelectorAll('.item-image');
     const replacements = [];
     
+    // Get selected quality level
+    const qualitySelector = document.getElementById('pngQuality');
+    const canvasScale = parseInt(qualitySelector.value); // User-selected resolution scale factor
+    
     try {
         // Replace each image with a canvas showing the cropped version
+        
         for (const img of allImages) {
             const container = img.parentElement;
             const containerWidth = container.offsetWidth;
             const containerHeight = container.offsetHeight;
             
-            // Create canvas
+            // Create high-resolution canvas
             const canvas = document.createElement('canvas');
-            canvas.width = containerWidth;
-            canvas.height = containerHeight;
+            canvas.width = containerWidth * canvasScale;
+            canvas.height = containerHeight * canvasScale;
             canvas.style.width = containerWidth + 'px';
             canvas.style.height = containerHeight + 'px';
             canvas.style.borderRadius = '8px';
@@ -432,19 +437,19 @@ async function generatePNG() {
             
             if (imgAspect > containerAspect) {
                 // Image is wider than container
-                drawHeight = containerHeight;
+                drawHeight = containerHeight * canvasScale;
                 drawWidth = drawHeight * imgAspect;
-                offsetX = (containerWidth - drawWidth) / 2;
+                offsetX = (containerWidth * canvasScale - drawWidth) / 2;
                 offsetY = 0;
             } else {
                 // Image is taller than container
-                drawWidth = containerWidth;
+                drawWidth = containerWidth * canvasScale;
                 drawHeight = drawWidth / imgAspect;
                 offsetX = 0;
-                offsetY = (containerHeight - drawHeight) / 2;
+                offsetY = (containerHeight * canvasScale - drawHeight) / 2;
             }
             
-            // Draw the cropped image
+            // Draw the cropped image at high resolution
             ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
             
             // Store original for restoration
@@ -460,7 +465,7 @@ async function generatePNG() {
         // Generate PNG with html2canvas
         const finalCanvas = await html2canvas(gallery, {
             backgroundColor: '#ffffff',
-            scale: 2,
+            scale: canvasScale,
             logging: false,
             useCORS: true,
             allowTaint: false,

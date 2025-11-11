@@ -519,9 +519,6 @@ body::before {
 
 /* Filters and controls */
 .filters-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-bottom: 25px;
     padding: 20px;
     background: var(--very-light-gray);
@@ -531,8 +528,9 @@ body::before {
 
 .filters {
     display: flex;
-    gap: 20px;
+    gap: 15px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .filters label {
@@ -541,7 +539,8 @@ body::before {
     font-size: 0.875rem;
 }
 
-.filters select {
+.filters select,
+.filters #pngQuality {
     padding: 8px 12px;
     border: 1px solid var(--light-gray);
     border-radius: 8px;
@@ -552,11 +551,13 @@ body::before {
     transition: all 0.2s;
 }
 
-.filters select:hover {
+.filters select:hover,
+.filters #pngQuality:hover {
     border-color: var(--primary-blue);
 }
 
-.filters select:focus {
+.filters select:focus,
+.filters #pngQuality:focus {
     outline: none;
     border-color: var(--primary-blue);
     box-shadow: 0 0 0 3px rgba(1, 176, 240, 0.1);
@@ -613,6 +614,7 @@ body::before {
     color: var(--secondary-black);
 }
 
+.filters .generate-png-btn,
 .generate-png-btn {
     background: var(--primary-blue);
     color: var(--white);
@@ -625,12 +627,14 @@ body::before {
     transition: all 0.2s;
 }
 
+.filters .generate-png-btn:hover,
 .generate-png-btn:hover {
     background: var(--primary-blue-dark);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(1, 176, 240, 0.2);
 }
 
+.filters .generate-png-btn:disabled,
 .generate-png-btn:disabled {
     background: var(--medium-gray);
     cursor: not-allowed;
