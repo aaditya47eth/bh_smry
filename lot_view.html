@@ -34,7 +34,6 @@
 
     <div class="container">
         <div class="controls">
-            <label>Switch Lot:</label>
             <select id="lotDropdown" onchange="switchLot()">
                 <option value="">Loading...</option>
             </select>
@@ -48,13 +47,19 @@
             <input type="range" id="zoomSlider" min="50" max="150" step="10" value="100" oninput="setZoomLevel(this.value)">
             <span id="zoomLevel">100%</span>
             <button onclick="increaseSize()" class="zoom-btn">+</button>
-            <button onclick="resetSize()" class="reset-btn">Reset</button>
             
             <label style="margin-left: 20px;">
                 <input type="checkbox" id="showTotalsCheckbox" checked onclick="toggleShowTotals()">
                 Show Totals
             </label>
             
+            <label style="margin-left: 20px;">Quality:</label>
+            <select id="pngQuality" style="margin-left: 5px; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                <option value="1">1x</option>
+                <option value="2" selected>2x</option>
+                <option value="3">3x</option>
+                <option value="4">4x</option>
+            </select>
             <button class="generate-btn" onclick="generatePNG()">Generate PNG</button>
             <button class="add-new-btn" id="addNewBtn" onclick="openAddModal()" style="display:none;">+ Add New</button>
         </div>

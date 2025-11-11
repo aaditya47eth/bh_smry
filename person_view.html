@@ -49,7 +49,7 @@
         <div id="lotsTab" class="tab-content active">
         <div class="filters-controls">
             <div class="filters">
-                <label>Filter by Status:</label>
+                <label>Status:</label>
                 <select id="statusFilter" onchange="applyFilters()">
                     <option value="all">All Status</option>
                     <option value="Yet to arrive">Yet to arrive</option>
@@ -57,7 +57,7 @@
                     <option value="Delivered">Delivered</option>
                 </select>
 
-                <label>Filter by Payment:</label>
+                <label>Payment:</label>
                 <select id="paymentFilter" onchange="applyFilters()">
                     <option value="all">All Payments</option>
                     <option value="Paid">Paid</option>
@@ -69,10 +69,17 @@
                 <input type="range" id="zoomSlider" min="50" max="150" step="10" value="100" oninput="setZoomLevel(this.value)">
                 <span id="zoomLevel">100%</span>
                 <button onclick="increaseZoom()" class="zoom-btn">+</button>
-                <button onclick="resetZoom()" class="reset-btn">Reset</button>
-            </div>
 
-            <button class="generate-png-btn" onclick="generatePersonViewPNG()">Generate PNG</button>
+                <label>Quality:</label>
+                <select id="pngQuality">
+                    <option value="1">1x</option>
+                    <option value="2" selected>2x</option>
+                    <option value="3">3x</option>
+                    <option value="4">4x</option>
+                </select>
+
+                <button class="generate-png-btn" onclick="generatePersonViewPNG()">Generate PNG</button>
+            </div>
         </div>
 
         <div id="lotsContainer" class="loading">
