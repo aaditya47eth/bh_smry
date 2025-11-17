@@ -62,6 +62,7 @@
             </select>
             <button class="generate-btn" onclick="generatePNG()">Generate PNG</button>
             <button class="add-new-btn" id="addNewBtn" onclick="openAddModal()" style="display:none;">+ Add New</button>
+            <button class="smart-paste-btn" id="smartPasteBtn" onclick="openSmartPasteModal()" style="display:none;">📋 Smart Paste</button>
         </div>
 
         <div id="gallery" class="loading">
@@ -75,6 +76,18 @@
             <div class="modal-header">Add New Item to Lot</div>
             
             <form id="addItemForm" onsubmit="event.preventDefault(); addNewItem();">
+                <div id="smartPasteInstructions" class="smart-paste-instructions" style="display:none;">
+                    <p><strong>Smart Paste Mode:</strong> Automatically reading from clipboard...</p>
+                    <ol>
+                        <li id="pasteStep1" class="paste-step">1. Phone number</li>
+                        <li id="pasteStep2" class="paste-step">2. Price</li>
+                        <li id="pasteStep3" class="paste-step">3. Image</li>
+                    </ol>
+                    <p style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                        <strong>How it works:</strong> Smart Paste reads your current clipboard and automatically extracts phone number, price, and image.<br>
+                        <small><strong>Note:</strong> Clipboard API requires HTTPS or localhost. If automatic reading doesn't work, you can paste manually (Ctrl+V) in the fields below.</small>
+                    </p>
+                </div>
                 <div class="form-group">
                     <label>Collector:</label>
                     <input type="text" id="newUsername" list="usernames" placeholder="Enter or select collector" required onkeydown="handleCollectorEnter(event)">

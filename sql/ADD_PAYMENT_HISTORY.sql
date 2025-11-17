@@ -38,3 +38,4 @@ ORDER BY ordinal_position;
 -- DONE! Payment history table is ready
 -- ============================================
 
+

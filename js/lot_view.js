@@ -14,6 +14,8 @@ let currentLot = null;
 let lotItems = [];
 let pastedImage = null;
 let showTotals = true; // Control total visibility
+let smartPasteMode = false; // Track if smart paste mode is active
+let smartPasteStep = 0; // Track current paste step (0 = phone, 1 = price, 2 = image)
 
 // Get lot ID and name from URL
 function getLotInfo() {
@@ -73,6 +75,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Show add button only for admin/manager
     if (hasPermission('add')) {
         document.getElementById('addNewBtn').style.display = 'inline-block';
+        document.getElementById('smartPasteBtn').style.display = 'inline-block';
     }
     
     // Show lock button only for admin
@@ -83,6 +86,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadLotDropdown(); // Load dropdown for switching lots
     loadLotItems();
     setupPasteArea();
+    setupSmartPasteInputs();
 });
 
 // Load items for this lot
@@ -114,6 +118,20 @@ async function loadLotItems() {
                 addNewBtn.disabled = false;
                 addNewBtn.style.opacity = '1';
                 addNewBtn.style.cursor = 'pointer';
+            }
+        }
+        
+        // Update Smart Paste button state based on lock
+        const smartPasteBtn = document.getElementById('smartPasteBtn');
+        if (smartPasteBtn && hasPermission('add')) {
+            if (currentLot.locked) {
+                smartPasteBtn.disabled = true;
+                smartPasteBtn.style.opacity = '0.5';
+                smartPasteBtn.style.cursor = 'not-allowed';
+            } else {
+                smartPasteBtn.disabled = false;
+                smartPasteBtn.style.opacity = '1';
+                smartPasteBtn.style.cursor = 'pointer';
             }
         }
         
@@ -513,6 +531,11 @@ function openAddModal(prefilledUsername = '') {
         return;
     }
     
+    smartPasteMode = false;
+    smartPasteStep = 0;
+    document.getElementById('smartPasteInstructions').style.display = 'none';
+    resetPasteSteps();
+    
     document.getElementById('addModal').style.display = 'block';
     updateUsernameDropdown();
     
@@ -525,6 +548,599 @@ function openAddModal(prefilledUsername = '') {
         document.getElementById('pasteArea').focus();
     }, 100);
 }
+
+// Open modal in smart paste mode - automatically read clipboard and populate fields
+// Smart Paste - directly create item from clipboard without opening modal
+// Expected format: phone number (line 1), image URL (line 2), price (line 3)
+async function openSmartPasteModal() {
+    if (isLotLocked()) {
+        alert('This lot is locked. Please unlock it first to add items.');
+        return;
+    }
+    
+    const smartPasteBtn = document.getElementById('smartPasteBtn');
+    if (smartPasteBtn) {
+        smartPasteBtn.disabled = true;
+        smartPasteBtn.textContent = '📋 Reading clipboard...';
+    }
+    
+    try {
+        // Read clipboard text
+        let clipboardText = '';
+        
+        // Check if clipboard API is available
+        if (!navigator.clipboard) {
+            throw new Error('Clipboard API not available in this browser.');
+        }
+        
+        // Check if we're on HTTPS or localhost
+        const isSecureContext = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        
+        if (!isSecureContext && !navigator.clipboard.readText) {
+            throw new Error('Clipboard API requires HTTPS or localhost.');
+        }
+        
+        // Read clipboard text
+        if (navigator.clipboard && navigator.clipboard.read) {
+            const clipboardItems = await navigator.clipboard.read();
+            
+            if (clipboardItems.length === 0) {
+                throw new Error('Clipboard is empty. Please copy the data in format: name/number, image URL, price.');
+            }
+            
+            // Look for text/plain in clipboard items
+            for (const item of clipboardItems) {
+                if (item.types.includes('text/plain')) {
+                    try {
+                        const textBlob = await item.getType('text/plain');
+                        clipboardText = await textBlob.text();
+                        break; // Use first text item found
+                    } catch (e) {
+                        console.error('Could not read text from clipboard:', e);
+                    }
+                }
+                
+                // Also check HTML for text content
+                if (item.types.includes('text/html') && !clipboardText) {
+                    try {
+                        const htmlBlob = await item.getType('text/html');
+                        const html = await htmlBlob.text();
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        clipboardText = tempDiv.textContent || tempDiv.innerText || '';
+                    } catch (e) {
+                        console.error('Could not read HTML from clipboard:', e);
+                    }
+                }
+            }
+        } else if (navigator.clipboard && navigator.clipboard.readText) {
+            clipboardText = await navigator.clipboard.readText();
+        } else {
+            throw new Error('Clipboard API not supported in this browser.');
+        }
+        
+        if (!clipboardText || !clipboardText.trim()) {
+            throw new Error('No text found in clipboard. Please copy the data in format: name/number, image URL, price.');
+        }
+        
+        // Parse the clipboard text - split by newlines
+        const lines = clipboardText.split(/[\n\r]+/).map(l => l.trim()).filter(l => l.length > 0);
+        
+        if (lines.length < 3) {
+            throw new Error('Invalid format. Expected 3 lines: name/number, image URL, price. Found ' + lines.length + ' line(s).');
+        }
+        
+        // Extract data from lines
+        // Line 1: Name or Phone number (accept any text)
+        const nameOrNumber = lines[0].trim();
+        if (!nameOrNumber || nameOrNumber.length === 0) {
+            throw new Error('Invalid name/number in first line. Cannot be empty.');
+        }
+        
+        // Line 2: Image URL
+        const imageUrl = lines[1].trim();
+        if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+            throw new Error('Invalid image URL in second line. Expected a valid HTTP/HTTPS URL.');
+        }
+        
+        // Line 3: Price
+        const priceText = lines[2].trim();
+        const priceNum = parseFloat(priceText.replace(/[^\d.]/g, ''));
+        if (isNaN(priceNum) || priceNum <= 0) {
+            throw new Error('Invalid price in third line. Expected a valid number.');
+        }
+        
+        // Add 10 to the price
+        const finalPrice = priceNum + 10;
+        
+        if (smartPasteBtn) {
+            smartPasteBtn.textContent = '📋 Creating item...';
+        }
+        
+        // Create item directly and get the mapped username
+        const mappedUsername = await createItemFromSmartPaste(nameOrNumber, finalPrice, imageUrl);
+        
+        if (smartPasteBtn) {
+            smartPasteBtn.textContent = '📋 Smart Paste';
+            smartPasteBtn.disabled = false;
+        }
+        
+        // Show success notification with mapped username
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10000; font-size: 14px;';
+        const userDisplayText = mappedUsername !== nameOrNumber ? `${mappedUsername} (${nameOrNumber})` : nameOrNumber;
+        notification.textContent = `✅ Item created: ${userDisplayText} - ₹${finalPrice}`;
+        document.body.appendChild(notification);
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 0.3s';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+        
+    } catch (error) {
+        console.error('Smart Paste error:', error);
+        alert('Smart Paste failed: ' + (error.message || error.toString()));
+        
+        if (smartPasteBtn) {
+            smartPasteBtn.textContent = '📋 Smart Paste';
+            smartPasteBtn.disabled = false;
+        }
+    }
+}
+
+// Create item directly from smart paste data
+// imageUrl is a Cloudinary URL that should be used directly (no upload needed)
+// nameOrNumber can be a name (like "Bidheaven") or a phone number (like "9163157905" or "1234567")
+// Returns the mapped username that was used
+async function createItemFromSmartPaste(nameOrNumber, price, imageUrl) {
+    try {
+        // Check if user exists by username OR number field
+        // Query 1: Check by username (exact match)
+        const { data: userByUsername, error: errorByUsername } = await supabaseClient
+            .from('users')
+            .select('id, username, number')
+            .eq('username', nameOrNumber);
+        
+        if (errorByUsername) throw errorByUsername;
+        
+        // Query 2: Check by number field (exact match)
+        const { data: userByNumber, error: errorByNumber } = await supabaseClient
+            .from('users')
+            .select('id, username, number')
+            .eq('number', nameOrNumber);
+        
+        if (errorByNumber) throw errorByNumber;
+        
+        // Query 3: Check if nameOrNumber is a phone number (contains digits) and search for partial matches
+        // If nameOrNumber contains digits, also check if it matches the end of any number field
+        let userByPartialNumber = null;
+        const digitsOnly = nameOrNumber.replace(/\D/g, '');
+        if (digitsOnly.length > 0) {
+            // Get all users and check if nameOrNumber matches the end of their number
+            const { data: allUsers, error: allUsersError } = await supabaseClient
+                .from('users')
+                .select('id, username, number')
+                .not('number', 'is', null);
+            
+            if (!allUsersError && allUsers) {
+                // Find users where the number ends with the digits from nameOrNumber
+                userByPartialNumber = allUsers.find(user => {
+                    if (!user.number) return false;
+                    const userNumberDigits = user.number.replace(/\D/g, '');
+                    return userNumberDigits.endsWith(digitsOnly) || digitsOnly.endsWith(userNumberDigits);
+                });
+            }
+        }
+        
+        // Determine which user to use (prefer exact username match, then exact number match, then partial number match)
+        let existingUser = null;
+        let finalUsername = nameOrNumber; // Default to nameOrNumber as username
+        
+        if (userByUsername && userByUsername.length > 0) {
+            // User exists with exact username match
+            existingUser = userByUsername[0];
+            finalUsername = existingUser.username;
+        } else if (userByNumber && userByNumber.length > 0) {
+            // User exists with exact number match
+            existingUser = userByNumber[0];
+            finalUsername = existingUser.username;
+        } else if (userByPartialNumber) {
+            // User exists with partial number match
+            existingUser = userByPartialNumber;
+            finalUsername = existingUser.username;
+        }
+        
+        // If user doesn't exist, create a new user
+        if (!existingUser) {
+            // Determine if nameOrNumber is likely a phone number (contains mostly digits)
+            const isLikelyPhoneNumber = digitsOnly.length >= 3 && digitsOnly.length >= nameOrNumber.length * 0.5;
+            
+            const { error: createUserError } = await supabaseClient
+                .from('users')
+                .insert([{
+                    username: nameOrNumber,
+                    password: '',
+                    number: isLikelyPhoneNumber ? nameOrNumber : '', // Set number only if it's likely a phone number
+                    access_level: 'viewer'
+                }]);
+            
+            if (createUserError) throw createUserError;
+            // Use nameOrNumber as username for new user
+            finalUsername = nameOrNumber;
+        }
+        
+        // Use the image URL directly (no Cloudinary upload needed)
+        // Insert into Supabase with the mapped username
+        const { error } = await supabaseClient
+            .from('items')
+            .insert([{
+                lot_id: currentLot.id,
+                username: finalUsername,
+                picture_url: imageUrl,
+                price: price
+            }]);
+
+        if (error) throw error;
+
+        // Reload items to show the new item
+        await loadLotItems();
+        
+        // Return the mapped username
+        return finalUsername;
+        
+    } catch (error) {
+        console.error('Error creating item from smart paste:', error);
+        throw error;
+    }
+}
+
+// Read clipboard and automatically populate all fields
+async function readClipboardAndPopulate() {
+    const usernameInput = document.getElementById('newUsername');
+    const priceInput = document.getElementById('newPrice');
+    const pasteArea = document.getElementById('pasteArea');
+    
+    let clipboardText = '';
+    let clipboardImage = null;
+    const textItems = [];
+    
+    console.log('Attempting to read clipboard...');
+    
+    try {
+        // Check if clipboard.read is available (requires HTTPS)
+        if (navigator.clipboard && navigator.clipboard.read) {
+            console.log('Using navigator.clipboard.read()');
+            const clipboardItems = await navigator.clipboard.read();
+            console.log('Clipboard items:', clipboardItems.length);
+            
+            if (clipboardItems.length === 0) {
+                console.warn('Clipboard is empty');
+                throw new Error('Clipboard is empty. Please copy phone number, price, and image first.');
+            }
+            
+            for (const item of clipboardItems) {
+                console.log('Clipboard item types:', item.types);
+                
+                // Read text
+                if (item.types.includes('text/plain')) {
+                    try {
+                        const textBlob = await item.getType('text/plain');
+                        const text = await textBlob.text();
+                        console.log('Found text in clipboard:', text.substring(0, 50));
+                        if (text && text.trim()) {
+                            textItems.push(text.trim());
+                            clipboardText += text.trim() + '\n';
+                        }
+                    } catch (e) {
+                        console.error('Could not read text from clipboard:', e);
+                    }
+                }
+                
+                // Read HTML (might contain text)
+                if (item.types.includes('text/html')) {
+                    try {
+                        const htmlBlob = await item.getType('text/html');
+                        const html = await htmlBlob.text();
+                        // Extract text from HTML
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        const text = tempDiv.textContent || tempDiv.innerText || '';
+                        if (text && text.trim() && !textItems.includes(text.trim())) {
+                            console.log('Found HTML text in clipboard:', text.substring(0, 50));
+                            textItems.push(text.trim());
+                        }
+                    } catch (e) {
+                        console.error('Could not read HTML from clipboard:', e);
+                    }
+                }
+                
+                // Read image (check for any image type)
+                const imageTypes = item.types.filter(t => t.startsWith('image/'));
+                if (imageTypes.length > 0) {
+                    try {
+                        const imageType = imageTypes[0]; // Use first image type found
+                        console.log('Found image in clipboard:', imageType);
+                        const imageBlob = await item.getType(imageType);
+                        clipboardImage = await blobToDataURL(imageBlob);
+                        console.log('Image loaded successfully');
+                    } catch (e) {
+                        console.error('Could not read image from clipboard:', e);
+                    }
+                }
+            }
+        } else if (navigator.clipboard && navigator.clipboard.readText) {
+            // Fallback: try to read text only
+            console.log('Using navigator.clipboard.readText() (fallback)');
+            clipboardText = await navigator.clipboard.readText();
+            console.log('Read text from clipboard:', clipboardText.substring(0, 50));
+            if (clipboardText && clipboardText.trim()) {
+                textItems.push(clipboardText.trim());
+            }
+        } else {
+            throw new Error('Clipboard API not supported in this browser.');
+        }
+    } catch (error) {
+        console.error('Error reading clipboard:', error);
+        // Provide more specific error messages
+        if (error.name === 'NotAllowedError') {
+            throw new Error('Clipboard access denied. Please grant clipboard permissions and try again.');
+        } else if (error.name === 'NotFoundError') {
+            throw new Error('Clipboard is empty. Please copy phone number, price, and image first.');
+        } else if (error.message) {
+            throw error;
+        } else {
+            throw new Error('Could not access clipboard: ' + error.toString());
+        }
+    }
+    
+    console.log('Text items found:', textItems.length, textItems);
+    console.log('Image found:', !!clipboardImage);
+    
+    // Process text items - try to identify phone number and price
+    let phoneNumber = '';
+    let price = '';
+    
+    // Combine all text sources
+    let allText = '';
+    if (textItems.length > 0) {
+        allText = textItems.join('\n');
+    } else if (clipboardText.trim()) {
+        allText = clipboardText.trim();
+    }
+    
+    // Try to parse text - look for phone number and price patterns
+    if (allText) {
+        // Split by newlines or common separators
+        const lines = allText.split(/[\n\r\t|,;]+/).map(l => l.trim()).filter(l => l.length > 0);
+        
+        // Try to find phone number and price in the text
+        for (const line of lines) {
+            if (!phoneNumber && isLikelyPhoneNumber(line)) {
+                phoneNumber = line;
+            } else if (!price) {
+                const extractedPrice = extractPrice(line);
+                if (extractedPrice) {
+                    price = extractedPrice;
+                }
+            }
+        }
+        
+        // If we still don't have both, try to extract from single line or multiple items
+        if (lines.length === 1 && (!phoneNumber || !price)) {
+            const line = lines[0];
+            // Check if it contains both phone and price
+            const phoneMatch = line.match(/(\+?\d[\d\s\-\(\)]{6,}\d)/);
+            const priceMatch = line.match(/(\d+[.,]?\d*)/g);
+            
+            if (phoneMatch && !phoneNumber) {
+                phoneNumber = phoneMatch[1].trim();
+            }
+            if (priceMatch && priceMatch.length > 0 && !price) {
+                // Get the last number match (likely the price)
+                const lastPrice = priceMatch[priceMatch.length - 1];
+                price = extractPrice(lastPrice);
+            }
+        }
+        
+        // If we have multiple text items, use them in order (first = phone, second = price)
+        if (textItems.length >= 2 && (!phoneNumber || !price)) {
+            if (!phoneNumber) {
+                phoneNumber = textItems[0];
+            }
+            if (!price) {
+                price = extractPrice(textItems[1]);
+            }
+        }
+        
+        // If we only have one text item and haven't identified both, try smart detection
+        if (textItems.length === 1 && (!phoneNumber || !price)) {
+            const text = textItems[0];
+            // Try to split by multiple separators
+            const parts = text.split(/[\n\r\t|,;:\s]+/).map(p => p.trim()).filter(p => p.length > 0);
+            if (parts.length >= 2) {
+                // Check each part
+                for (const part of parts) {
+                    if (!phoneNumber && isLikelyPhoneNumber(part)) {
+                        phoneNumber = part;
+                    } else if (!price) {
+                        const extractedPrice = extractPrice(part);
+                        if (extractedPrice) {
+                            price = extractedPrice;
+                        }
+                    }
+                }
+            } else {
+                // Single item - determine if phone or price
+                if (isLikelyPhoneNumber(text)) {
+                    phoneNumber = text;
+                } else {
+                    const extractedPrice = extractPrice(text);
+                    if (extractedPrice) {
+                        price = extractedPrice;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Populate fields
+    if (phoneNumber) {
+        usernameInput.value = phoneNumber;
+    }
+    
+    if (price) {
+        priceInput.value = price;
+    }
+    
+    // Populate image field
+    if (clipboardImage) {
+        pastedImage = clipboardImage;
+        pasteArea.innerHTML = `<img src="${clipboardImage}" alt="Pasted image" style="max-width: 100%; max-height: 200px; object-fit: contain;">`;
+    } else {
+        // If no image, show message but keep the paste area ready
+        pasteArea.innerHTML = '<div class="paste-instructions">No image found in clipboard. You can paste an image manually (Ctrl+V) in this area.</div>';
+    }
+    
+    // Mark all steps as completed if we have all data
+    if (phoneNumber && price && clipboardImage) {
+        console.log('All fields populated successfully!');
+        resetPasteSteps();
+        for (let i = 1; i <= 3; i++) {
+            const step = document.getElementById(`pasteStep${i}`);
+            if (step) {
+                step.classList.add('completed');
+            }
+        }
+        // Auto-focus the Add Item button
+        setTimeout(() => {
+            const addButton = document.querySelector('.btn-add');
+            if (addButton) {
+                addButton.focus();
+            }
+        }, 100);
+    } else {
+        // Show which fields are populated
+        resetPasteSteps();
+        let hasAnyData = false;
+        
+        if (phoneNumber) {
+            console.log('Phone number found:', phoneNumber);
+            document.getElementById('pasteStep1')?.classList.add('completed');
+            hasAnyData = true;
+        }
+        if (price) {
+            console.log('Price found:', price);
+            document.getElementById('pasteStep2')?.classList.add('completed');
+            hasAnyData = true;
+        }
+        if (clipboardImage) {
+            console.log('Image found');
+            document.getElementById('pasteStep3')?.classList.add('completed');
+            hasAnyData = true;
+        }
+        
+        // Show message if items are missing
+        if (!hasAnyData) {
+            pasteArea.innerHTML = `<div class="paste-instructions" style="color: #856404;">
+                <strong>No data found in clipboard.</strong><br>
+                <small>Please copy the phone number, price, and image to your clipboard first, then click Smart Paste again.<br>
+                Or paste manually (Ctrl+V) in the fields below.</small>
+            </div>`;
+        } else {
+            const missingItems = [];
+            if (!phoneNumber) missingItems.push('phone number');
+            if (!price) missingItems.push('price');
+            if (!clipboardImage) missingItems.push('image');
+            
+            if (missingItems.length > 0) {
+                const currentContent = pasteArea.innerHTML;
+                pasteArea.innerHTML = currentContent + `<div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; color: #856404; font-size: 0.9em;">
+                    <strong>Missing:</strong> ${missingItems.join(', ')}<br>
+                    <small>You can paste the missing items manually (Ctrl+V) or copy them to clipboard and click Smart Paste again.</small>
+                </div>`;
+            }
+        }
+    }
+    
+    // Focus on the first empty field
+    setTimeout(() => {
+        if (!phoneNumber) {
+            usernameInput.focus();
+        } else if (!price) {
+            priceInput.focus();
+        } else if (!clipboardImage) {
+            pasteArea.focus();
+        }
+    }, 100);
+}
+
+// Convert blob to data URL
+function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+// Extract price from text (remove currency symbols, commas, etc.)
+function extractPrice(text) {
+    if (!text) return '';
+    // Remove currency symbols and extract numbers with decimal point
+    const priceMatch = text.match(/[\d,]+\.?\d*/);
+    if (priceMatch) {
+        return priceMatch[0].replace(/,/g, '');
+    }
+    // If no match, check if entire text is a number
+    const num = parseFloat(text.replace(/[^\d.]/g, ''));
+    if (!isNaN(num) && num > 0) {
+        return num.toString();
+    }
+    return '';
+}
+
+// Check if text is likely a phone number
+function isLikelyPhoneNumber(text) {
+    if (!text) return false;
+    // Remove common phone number characters
+    const digitsOnly = text.replace(/[\s\-\(\)\+]/g, '');
+    // Check if it's mostly digits and has reasonable length (7-15 digits)
+    if (/^\d+$/.test(digitsOnly) && digitsOnly.length >= 7 && digitsOnly.length <= 15) {
+        return true;
+    }
+    // Check for common phone number patterns
+    if (/[\d\s\-\(\)\+]{7,}/.test(text) && /^\d/.test(text.replace(/[\s\-\(\)\+]/g, ''))) {
+        return true;
+    }
+    return false;
+}
+
+// Reset paste step indicators
+function resetPasteSteps() {
+    for (let i = 0; i < 3; i++) {
+        const step = document.getElementById(`pasteStep${i + 1}`);
+        if (step) {
+            step.classList.remove('active', 'completed');
+        }
+    }
+}
+
+// Update active paste step
+function updatePasteStep(step) {
+    resetPasteSteps();
+    for (let i = 0; i <= step; i++) {
+        const stepElement = document.getElementById(`pasteStep${i + 1}`);
+        if (stepElement) {
+            if (i < step) {
+                stepElement.classList.add('completed');
+            } else if (i === step) {
+                stepElement.classList.add('active');
+            }
+        }
+    }
+}
+
 
 // Handle Enter key in collector input - select first dropdown option then move to price
 function handleCollectorEnter(event) {
@@ -561,6 +1177,10 @@ function closeAddModal() {
     document.getElementById('addItemForm').reset();
     document.getElementById('pasteArea').innerHTML = '<div class="paste-instructions">Click here and press Ctrl+V to paste image</div>';
     pastedImage = null;
+    smartPasteMode = false;
+    smartPasteStep = 0;
+    document.getElementById('smartPasteInstructions').style.display = 'none';
+    resetPasteSteps();
 }
 
 // Update username dropdown - fetch from database
@@ -634,22 +1254,13 @@ function setupPasteArea() {
     const modal = document.getElementById('addModal');
     
     pasteArea.addEventListener('paste', function(e) {
-        e.preventDefault();
-        const items = e.clipboardData.items;
-        
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                const blob = items[i].getAsFile();
-                const reader = new FileReader();
-                
-                reader.onload = function(event) {
-                    pastedImage = event.target.result;
-                    pasteArea.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
-                };
-                
-                reader.readAsDataURL(blob);
-                break;
-            }
+        // In smart paste mode, handleSmartPaste will be called from document listener
+        // Otherwise, handle normal paste
+        if (!smartPasteMode) {
+            e.preventDefault();
+            handlePaste(e, true);
+        } else {
+            handleSmartPaste(e);
         }
     });
     
@@ -664,14 +1275,45 @@ function setupPasteArea() {
         }
     });
 
-    // Global paste listener - auto-open modal when pasting image anywhere
+    // Global paste listener - handle smart paste mode and auto-open modal
     document.addEventListener('paste', function(e) {
         // Check if user has add permission
         if (!hasPermission('add')) {
             return;
         }
 
-        // Check if paste contains an image
+        // If modal is open and in smart paste mode, handle pastes
+        if (modal.style.display === 'block' && smartPasteMode) {
+            const target = e.target;
+            const pasteArea = document.getElementById('pasteArea');
+            const usernameInput = document.getElementById('newUsername');
+            const priceInput = document.getElementById('newPrice');
+            
+            // Handle paste in paste area (for images)
+            if (target === pasteArea || pasteArea.contains(target)) {
+                handleSmartPaste(e);
+                return;
+            }
+            
+            // Handle paste in input fields (for text)
+            if (target === usernameInput || target === priceInput) {
+                // Let the default paste happen, then check if we need to advance
+                setTimeout(() => {
+                    if (target === usernameInput && target.value.trim() && smartPasteStep === 0) {
+                        smartPasteStep = 1;
+                        updatePasteStep(1);
+                        priceInput.focus();
+                    } else if (target === priceInput && target.value.trim() && smartPasteStep === 1) {
+                        smartPasteStep = 2;
+                        updatePasteStep(2);
+                        pasteArea.focus();
+                    }
+                }, 50);
+            }
+            return;
+        }
+
+        // Check if paste contains an image (non-smart paste mode)
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
@@ -730,6 +1372,131 @@ function setupPasteArea() {
             }
             e.preventDefault();
             addNewItem();
+        }
+    });
+}
+
+// Handle paste event
+function handlePaste(e, isPasteArea = false) {
+    const items = e.clipboardData.items;
+    
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            const blob = items[i].getAsFile();
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                pastedImage = event.target.result;
+                const pasteAreaElement = document.getElementById('pasteArea');
+                pasteAreaElement.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+            };
+            
+            reader.readAsDataURL(blob);
+            break;
+        }
+    }
+}
+
+// Handle smart paste mode - sequential pastes
+function handleSmartPaste(e) {
+    // Don't prevent default if user is pasting into an input field
+    // Only handle paste events on the paste area or document level
+    const target = e.target;
+    const usernameInput = document.getElementById('newUsername');
+    const priceInput = document.getElementById('newPrice');
+    const pasteArea = document.getElementById('pasteArea');
+    
+    // If paste is on paste area, handle image paste
+    if (target === pasteArea || pasteArea.contains(target)) {
+        e.preventDefault();
+        const items = e.clipboardData.items;
+        
+        // Check for image
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    pastedImage = event.target.result;
+                    pasteArea.innerHTML = `<img src="${pastedImage}" alt="Pasted image">`;
+                    
+                    // Mark step 3 as completed
+                    if (smartPasteStep < 2) {
+                        smartPasteStep = 2;
+                    }
+                    updatePasteStep(2);
+                    
+                    // Auto-submit if all fields are filled
+                    if (usernameInput.value.trim() && priceInput.value.trim()) {
+                        setTimeout(() => {
+                            addNewItem();
+                        }, 500);
+                    }
+                };
+                
+                reader.readAsDataURL(blob);
+                return;
+            }
+        }
+    }
+    
+    // For text pastes in input fields, the input listeners will handle step progression
+    // This function mainly handles image pastes in the paste area
+}
+
+// Setup input listeners for smart paste mode
+function setupSmartPasteInputs() {
+    const usernameInput = document.getElementById('newUsername');
+    const priceInput = document.getElementById('newPrice');
+    
+    // Listen for input events to track progress
+    usernameInput.addEventListener('input', function() {
+        if (smartPasteMode && this.value.trim() && smartPasteStep === 0) {
+            smartPasteStep = 1;
+            updatePasteStep(1);
+            setTimeout(() => {
+                priceInput.focus();
+            }, 100);
+        }
+    });
+    
+    priceInput.addEventListener('input', function() {
+        if (smartPasteMode && this.value.trim() && smartPasteStep === 1) {
+            smartPasteStep = 2;
+            updatePasteStep(2);
+            setTimeout(() => {
+                document.getElementById('pasteArea').focus();
+            }, 100);
+        }
+    });
+    
+    // Also handle paste events on input fields in smart paste mode
+    usernameInput.addEventListener('paste', function(e) {
+        if (smartPasteMode && smartPasteStep === 0) {
+            setTimeout(() => {
+                if (this.value.trim()) {
+                    smartPasteStep = 1;
+                    updatePasteStep(1);
+                    setTimeout(() => {
+                        priceInput.focus();
+                    }, 100);
+                }
+            }, 50);
+        }
+    });
+    
+    priceInput.addEventListener('paste', function(e) {
+        if (smartPasteMode && smartPasteStep === 1) {
+            setTimeout(() => {
+                if (this.value.trim()) {
+                    smartPasteStep = 2;
+                    updatePasteStep(2);
+                    setTimeout(() => {
+                        document.getElementById('pasteArea').focus();
+                    }, 100);
+                }
+            }, 50);
         }
     });
 }

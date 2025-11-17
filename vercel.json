@@ -1,0 +1,52 @@
+{
+  "rewrites": [
+    {
+      "source": "/dashboard",
+      "destination": "/dashboard.html"
+    },
+    {
+      "source": "/lot-view",
+      "destination": "/lot_view.html"
+    },
+    {
+      "source": "/person-view",
+      "destination": "/person_view.html"
+    },
+    {
+      "source": "/admin-panel",
+      "destination": "/admin_panel.html"
+    },
+    {
+      "source": "/checklist-view",
+      "destination": "/checklist_view.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/dashboard.html",
+      "destination": "/dashboard",
+      "permanent": true
+    },
+    {
+      "source": "/lot_view.html",
+      "destination": "/lot-view",
+      "permanent": true
+    },
+    {
+      "source": "/person_view.html",
+      "destination": "/person-view",
+      "permanent": true
+    },
+    {
+      "source": "/admin_panel.html",
+      "destination": "/admin-panel",
+      "permanent": true
+    },
+    {
+      "source": "/checklist_view.html",
+      "destination": "/checklist-view",
+      "permanent": true
+    }
+  ]
+}
+
