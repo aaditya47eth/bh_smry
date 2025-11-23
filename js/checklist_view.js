@@ -9,8 +9,8 @@ let checklistItems = [];
 function getLotInfo() {
     const params = new URLSearchParams(window.location.search);
     return {
-        id: params.get('lot_id'),
-        name: params.get('lot_name')
+        id: parseInt(params.get('lot_id')), // Parse as integer
+        name: decodeURIComponent(params.get('lot_name') || 'Unknown Lot')
     };
 }
 
@@ -71,7 +71,6 @@ async function loadChecklistItems() {
         if (error) throw error;
 
         checklistItems = data || [];
-        console.log('Loaded checklist items:', checklistItems.length, checklistItems);
         renderChecklist();
         updateStats();
     } catch (error) {

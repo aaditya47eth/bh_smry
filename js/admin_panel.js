@@ -438,98 +438,108 @@ async function deleteUser(userId, username) {
 // CHECKLIST FUNCTIONALITY
 // ============================================
 
-// Load checklist data
+// Load checklist data - WITH LOT NAMES AND COMPLETION STATUS
 async function loadChecklistData() {
     try {
-        const { data: lots, error } = await supabaseClient
+        // Get lots table for lot names
+        const { data: lots, error: lotsError } = await supabaseClient
             .from('lots')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('id, lot_name');
 
-        if (error) throw error;
+        if (lotsError) throw lotsError;
 
-        // Get all items to count per lot
-        let items;
-        let { data: itemsData, error: itemsError } = await supabaseClient
-            .from('items')
-            .select('lot_id, checked, checklist_status');
+        // Create a map of lot_id -> lot_name
+        const lotNameMap = {};
+        lots.forEach(lot => {
+            lotNameMap[lot.id] = lot.lot_name;
+        });
 
-        if (itemsError) {
-            console.error('Error fetching items:', itemsError);
-            const { data: itemsWithoutChecked, error: itemsError2 } = await supabaseClient
+        // Get ALL items - fetch in batches to bypass 1000 row limit
+        let allItems = [];
+        let start = 0;
+        const batchSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data: batch, error: itemsError } = await supabaseClient
                 .from('items')
-                .select('lot_id');
-            
-            if (itemsError2) throw itemsError2;
-            items = itemsWithoutChecked.map(item => ({ ...item, checked: false, checklist_status: 'unchecked' }));
-        } else {
-            items = itemsData;
+                .select('id, lot_id, checklist_status, checked')
+                .range(start, start + batchSize - 1);
+
+            if (itemsError) throw itemsError;
+
+            if (batch && batch.length > 0) {
+                allItems = allItems.concat(batch);
+                start += batchSize;
+                
+                // If we got fewer items than batch size, we've reached the end
+                if (batch.length < batchSize) {
+                    hasMore = false;
+                }
+            } else {
+                hasMore = false;
+            }
         }
+
+        const items = allItems;
 
         const container = document.getElementById('checklistTableBody');
         container.innerHTML = '';
 
-        if (!lots || lots.length === 0) {
-            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No lots available</div>';
+        if (!items || items.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No items available</div>';
             return;
         }
 
-        // Categorize lots
-        const incomplete = [];
-        const partial = [];
-        const completed = [];
-
-        lots.forEach(lot => {
-            const lotItems = items ? items.filter(item => item.lot_id === lot.id) : [];
-            const totalItems = lotItems.length;
-            
-            // Count items that are processed (either checked OR rejected)
-            const processedItems = items ? lotItems.filter(item => {
-                const status = item.checklist_status || (item.checked ? 'checked' : 'unchecked');
-                return status === 'checked' || status === 'rejected';
-            }).length : 0;
-            
-            const lotData = {
-                lot,
-                totalItems,
-                checkedItems: processedItems, // Rename for display, but includes both checked and rejected
-                percentage: totalItems > 0 ? (processedItems / totalItems * 100) : 0
-            };
-
-            if (processedItems === 0) {
-                incomplete.push(lotData);
-            } else if (processedItems === totalItems && totalItems > 0) {
-                completed.push(lotData);
-            } else {
-                partial.push(lotData);
+        // Group items by lot_id
+        const lotGroups = {};
+        let itemsWithoutLotId = 0;
+        
+        items.forEach(item => {
+            if (!item.lot_id) {
+                itemsWithoutLotId++;
+                return; // Skip items without lot_id
             }
+            
+            if (!lotGroups[item.lot_id]) {
+                lotGroups[item.lot_id] = [];
+            }
+            lotGroups[item.lot_id].push(item);
         });
 
-        // Sort each category by lot name (numeric sorting for proper order)
-        const sortByLotName = (a, b) => {
-            // Extract numbers from lot names for proper numeric sorting
-            const extractNumber = (str) => {
-                const match = str.match(/\d+/);
-                return match ? parseInt(match[0]) : 0;
-            };
-            
-            const numA = extractNumber(a.lot.lot_name);
-            const numB = extractNumber(b.lot.lot_name);
-            
-            // If both have numbers, sort by number
-            if (numA && numB) {
-                return numA - numB;
-            }
-            
-            // Otherwise, use string comparison
-            return a.lot.lot_name.toLowerCase().localeCompare(b.lot.lot_name.toLowerCase());
-        };
-        
-        partial.sort(sortByLotName);
-        incomplete.sort(sortByLotName);
-        completed.sort(sortByLotName);
 
-        // Store data globally for sorting
+        // Convert to array and create lot data
+        const allLots = Object.entries(lotGroups).map(([lotId, lotItems]) => {
+            // Get lot name from lots table, fallback to generated name
+            const lotName = lotNameMap[lotId] || `Lot ${lotId}`;
+            
+            // Calculate completion
+            const totalItems = lotItems.length;
+            const completedItems = lotItems.filter(item => {
+                const status = item.checklist_status || (item.checked ? 'checked' : 'unchecked');
+                return status === 'checked' || status === 'rejected';
+            }).length;
+            const pendingItems = totalItems - completedItems;
+            
+            return {
+                lotId: parseInt(lotId),
+                lotName: lotName,
+                totalItems: totalItems,
+                completedItems: completedItems,
+                pendingItems: pendingItems,
+                percentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
+            };
+        });
+
+        // Sort by lot number
+        allLots.sort((a, b) => a.lotId - b.lotId);
+
+        // Categorize lots
+        const completed = allLots.filter(l => l.completedItems === l.totalItems && l.totalItems > 0);
+        const partial = allLots.filter(l => l.completedItems > 0 && l.completedItems < l.totalItems);
+        const incomplete = allLots.filter(l => l.completedItems === 0);
+
+        // Store data for sorting
         window.checklistData = {
             partial: partial,
             incomplete: incomplete,
@@ -541,10 +551,18 @@ async function loadChecklistData() {
             completed: { column: 'lot_name', direction: 'asc' }
         };
 
-        // Render sections (Partial at top, then Incomplete, then Completed)
-        renderChecklistSection(container, 'Partial', partial, 'partial', true);
-        renderChecklistSection(container, 'Incomplete', incomplete, 'incomplete', true);
-        renderChecklistSection(container, 'Completed', completed, 'completed', false);
+        // Render table with sections
+        container.innerHTML = '';
+        
+        if (partial.length > 0) {
+            renderChecklistSection(container, 'Partial', partial, 'partial', true);
+        }
+        if (incomplete.length > 0) {
+            renderChecklistSection(container, 'Incomplete', incomplete, 'incomplete', true);
+        }
+        if (completed.length > 0) {
+            renderChecklistSection(container, 'Completed', completed, 'completed', false);
+        }
         
         // Update sort indicators
         updateChecklistSortIndicators('partial', 'lot_name', 'asc');
@@ -557,6 +575,7 @@ async function loadChecklistData() {
     }
 }
 
+// Render checklist section for new data structure
 function renderChecklistSection(container, title, lots, sectionId, isOpen) {
     if (lots.length === 0) return; // Don't render empty sections
 
@@ -600,13 +619,13 @@ function renderChecklistSection(container, title, lots, sectionId, isOpen) {
     lots.forEach(lotData => {
         const tr = document.createElement('tr');
         tr.className = 'clickable-row';
-        tr.onclick = () => openChecklistView(lotData.lot.id, lotData.lot.lot_name);
+        tr.onclick = () => openChecklistView(lotData.lotId, lotData.lotName);
         tr.innerHTML = `
-            <td><strong>${lotData.lot.lot_name}</strong></td>
+            <td><strong>${lotData.lotName}</strong></td>
             <td>${lotData.totalItems}</td>
             <td>
                 <span class="checklist-badge ${lotData.percentage === 100 ? 'checked' : 'unchecked'}">
-                    ${lotData.percentage === 100 ? 'Complete' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
+                    ${lotData.percentage === 100 ? 'Complete' : 'Pending'} (${lotData.completedItems}/${lotData.totalItems})
                 </span>
             </td>
         `;
@@ -658,8 +677,8 @@ function sortChecklistSection(sectionId, column) {
                 return match ? parseInt(match[0]) : 0;
             };
             
-            const numA = extractNumber(a.lot.lot_name);
-            const numB = extractNumber(b.lot.lot_name);
+            const numA = extractNumber(a.lotName);
+            const numB = extractNumber(b.lotName);
             
             // If both have numbers, sort by number
             if (numA && numB) {
@@ -667,8 +686,8 @@ function sortChecklistSection(sectionId, column) {
             }
             
             // Otherwise, use string comparison
-            aVal = a.lot.lot_name.toLowerCase();
-            bVal = b.lot.lot_name.toLowerCase();
+            aVal = a.lotName.toLowerCase();
+            bVal = b.lotName.toLowerCase();
             const result = aVal.localeCompare(bVal);
             return direction === 'asc' ? result : -result;
         } else if (column === 'totalItems') {
@@ -688,13 +707,13 @@ function sortChecklistSection(sectionId, column) {
     lots.forEach(lotData => {
         const tr = document.createElement('tr');
         tr.className = 'clickable-row';
-        tr.onclick = () => openChecklistView(lotData.lot.id, lotData.lot.lot_name);
+        tr.onclick = () => openChecklistView(lotData.lotId, lotData.lotName);
         tr.innerHTML = `
-            <td><strong>${lotData.lot.lot_name}</strong></td>
+            <td><strong>${lotData.lotName}</strong></td>
             <td>${lotData.totalItems}</td>
             <td>
                 <span class="checklist-badge ${lotData.percentage === 100 ? 'checked' : 'unchecked'}">
-                    ${lotData.percentage === 100 ? 'Complete' : 'Pending'} (${lotData.checkedItems}/${lotData.totalItems})
+                    ${lotData.percentage === 100 ? 'Complete' : 'Pending'} (${lotData.completedItems}/${lotData.totalItems})
                 </span>
             </td>
         `;
