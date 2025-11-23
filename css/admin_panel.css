@@ -328,7 +328,8 @@
 }
 
 .checklist-section-content.open {
-    max-height: 2000px;
+    max-height: 10000px; /* Increased to support more items */
+    overflow-y: auto; /* Add scrollbar if needed */
     transition: max-height 0.5s ease-in;
 }
 
@@ -339,6 +340,25 @@
 
 .checklist-section-content .users-table thead th {
     background: var(--sidebar-hover);
+}
+
+/* Custom scrollbar for checklist sections */
+.checklist-section-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.checklist-section-content::-webkit-scrollbar-track {
+    background: var(--bg-light);
+    border-radius: 4px;
+}
+
+.checklist-section-content::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.checklist-section-content::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 .password-warning {

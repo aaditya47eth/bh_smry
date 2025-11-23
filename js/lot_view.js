@@ -87,6 +87,7 @@ window.addEventListener('DOMContentLoaded', () => {
     loadLotItems();
     setupPasteArea();
     setupSmartPasteInputs();
+    setupEnterKeySmartPaste();
 });
 
 // Load items for this lot
@@ -1498,6 +1499,46 @@ function setupSmartPasteInputs() {
                 }
             }, 50);
         }
+    });
+}
+
+// Setup Enter key to trigger Smart Paste
+function setupEnterKeySmartPaste() {
+    document.addEventListener('keydown', async (e) => {
+        // Only trigger on Enter key
+        if (e.key !== 'Enter') return;
+        
+        // Don't trigger if typing in an input, textarea, or contenteditable
+        const activeElement = document.activeElement;
+        if (activeElement && (
+            activeElement.tagName === 'INPUT' ||
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.isContentEditable
+        )) {
+            return;
+        }
+        
+        // Don't trigger if a modal is open
+        const modal = document.getElementById('addItemModal');
+        if (modal && modal.style.display === 'block') {
+            return;
+        }
+        
+        // Don't trigger if lot is locked
+        if (isLotLocked()) {
+            return;
+        }
+        
+        // Don't trigger if user doesn't have add permission
+        if (!hasPermission('add')) {
+            return;
+        }
+        
+        // Prevent default Enter behavior
+        e.preventDefault();
+        
+        // Trigger smart paste
+        await openSmartPasteModal();
     });
 }
 
