@@ -46,11 +46,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('adminPanelHeaderBtn').style.display = 'inline-block';
     }
     
-    // Check if a specific section should be opened from URL parameter
+    // Check if a specific section should be opened from URL parameter or localStorage
     const urlParams = new URLSearchParams(window.location.search);
-    const section = urlParams.get('section');
-    if (section === 'checklist') {
-        switchSection('checklist');
+    const sectionParam = urlParams.get('section');
+    const savedSection = localStorage.getItem('adminPanelSelectedSection');
+    
+    if (sectionParam) {
+        switchSection(sectionParam);
+    } else if (savedSection) {
+        switchSection(savedSection);
     }
 
     // Load all users
@@ -72,6 +76,9 @@ function switchSection(sectionName) {
         item.classList.remove('active');
     });
     
+    // Save to localStorage
+    localStorage.setItem('adminPanelSelectedSection', sectionName);
+    
     // Show selected section
     if (sectionName === 'users') {
         document.getElementById('usersSection').classList.add('active');
@@ -92,6 +99,10 @@ function switchSection(sectionName) {
         document.getElementById('paymentsSection').classList.add('active');
         document.querySelector('.menu-item[onclick*="payments"]').classList.add('active');
         loadPayments(); // Load payment history
+    } else if (sectionName === 'bidding') {
+        document.getElementById('biddingSection').classList.add('active');
+        document.querySelector('.menu-item[onclick*="bidding"]').classList.add('active');
+        initBiddingSection(); // Initialize bidding section
     }
 }
 
@@ -2566,3 +2577,886 @@ async function deletePayment(paymentId) {
         alert('Failed to delete payment: ' + error.message);
     }
 }
+
+// ==============================================================
+// LIVE BIDDING FUNCTIONS - SUPABASE INTEGRATION
+// ==============================================================
+
+let biddingAuctions = {}; // Local state: { postUrl: { items: {}, images: [] } }
+let biddingRealtimeSubscriptions = {}; // Store Realtime subscriptions
+const BIDDING_POLL_INTERVAL = 120; // 120 seconds
+
+// Initialize bidding section
+let biddingRefreshInterval = null;
+
+function initBiddingSection() {
+    loadBiddingWatchers();
+    subscribeToBiddingUpdates();
+    checkBiddingCookieStatus();
+    
+    // Auto-refresh every minute
+    if (biddingRefreshInterval) {
+        clearInterval(biddingRefreshInterval);
+    }
+    biddingRefreshInterval = setInterval(async () => {
+        console.log('[Bidding] Auto-refreshing data...');
+        const currentUser = getCurrentUser();
+        const createdBy = currentUser ? currentUser.username : 'admin';
+        
+        const { data: watchers } = await supabaseClient
+            .from('bidding_watchers')
+            .select('post_url, my_name')
+            .eq('created_by', createdBy)
+            .eq('is_running', true);
+        
+        if (watchers) {
+            for (const watcher of watchers) {
+                await loadBiddingDataForPost(watcher.post_url, watcher.my_name);
+            }
+        }
+    }, 60000); // Every 60 seconds
+}
+
+// Load existing watchers from Supabase and create panels
+async function loadBiddingWatchers() {
+    try {
+        const currentUser = getCurrentUser();
+        const createdBy = currentUser ? currentUser.username : 'admin';
+        
+        // Get all active watchers for current user
+        const { data: watchers, error } = await supabaseClient
+            .from('bidding_watchers')
+            .select('post_url, my_name')
+            .eq('created_by', createdBy)
+            .eq('is_running', true);
+        
+        if (error) {
+            console.error("Error loading watchers:", error);
+            return;
+        }
+        
+        if (!watchers || watchers.length === 0) {
+            return; // No watchers to load
+        }
+        
+        // Create panels and load data for each watcher
+        for (const watcher of watchers) {
+            createBiddingPanelIfNotExists(watcher.post_url);
+            await loadBiddingDataForPost(watcher.post_url, watcher.my_name);
+        }
+        
+    } catch (error) {
+        console.error("Error in loadBiddingWatchers:", error);
+    }
+}
+
+// Subscribe to real-time updates from Supabase
+function subscribeToBiddingUpdates() {
+    // Subscribe to bidding_posts changes
+    const postsChannel = supabaseClient
+        .channel('bidding_posts_changes')
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'bidding_posts' },
+            async (payload) => {
+                const postUrl = payload.new?.post_url || payload.old?.post_url;
+                if (postUrl) {
+                    // Reload data for this post
+                    const { data: watcher } = await supabaseClient
+                        .from('bidding_watchers')
+                        .select('my_name')
+                        .eq('post_url', postUrl)
+                        .eq('is_running', true)
+                        .limit(1)
+                        .maybeSingle();
+                    
+                    await loadBiddingDataForPost(postUrl, watcher?.my_name || null);
+                }
+            }
+        )
+        .subscribe();
+    
+    // Subscribe to bidding_bids changes
+    const bidsChannel = supabaseClient
+        .channel('bidding_bids_changes')
+        .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'bidding_bids' },
+            async (payload) => {
+                const postUrl = payload.new.post_url;
+                if (postUrl) {
+                    // Reload data for this post
+                    const { data: watcher } = await supabaseClient
+                        .from('bidding_watchers')
+                        .select('my_name')
+                        .eq('post_url', postUrl)
+                        .eq('is_running', true)
+                        .limit(1)
+                        .maybeSingle();
+                    
+                    await loadBiddingDataForPost(postUrl, watcher?.my_name || null);
+                }
+            }
+        )
+        .subscribe();
+    
+    // Subscribe to bidding_watchers changes (to show/hide panels)
+    const watchersChannel = supabaseClient
+        .channel('bidding_watchers_changes')
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'bidding_watchers' },
+            async (payload) => {
+                const postUrl = payload.new?.post_url || payload.old?.post_url;
+                const isRunning = payload.new?.is_running;
+                
+                if (postUrl) {
+                    if (isRunning === false) {
+                        // Remove panel if watcher stopped
+                        const el = document.getElementById(`bidding-panel-${btoa(postUrl)}`);
+                        if (el) el.remove();
+                    } else if (isRunning === true) {
+                        // Create panel if watcher started
+                        createBiddingPanelIfNotExists(postUrl);
+                        const watcher = payload.new;
+                        await loadBiddingDataForPost(postUrl, watcher.my_name);
+                    }
+                }
+            }
+        )
+        .subscribe();
+    
+    // Store subscriptions for cleanup if needed
+    biddingRealtimeSubscriptions.posts = postsChannel;
+    biddingRealtimeSubscriptions.bids = bidsChannel;
+    biddingRealtimeSubscriptions.watchers = watchersChannel;
+}
+
+// Check cookie status in Supabase
+async function checkBiddingCookieStatus() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('bidding_cookies')
+            .select('*')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .single();
+        
+        const statusEl = document.getElementById('cookieStatusText');
+        if (error && error.code === 'PGRST116') {
+            // No cookies found
+            statusEl.innerHTML = '<span style="color: #dc3545;">❌ No cookies set</span>';
+            statusEl.style.color = '#dc3545';
+        } else if (error) {
+            statusEl.innerHTML = '<span style="color: #dc3545;">Error checking cookies</span>';
+            statusEl.style.color = '#dc3545';
+        } else if (data) {
+            statusEl.innerHTML = '<span style="color: #42b72a;">✅ Cookies saved</span> <span style="color: var(--text-secondary); font-size: 0.8em;">(Updated: ' + new Date(data.updated_at).toLocaleDateString() + ')</span>';
+            statusEl.style.color = '#42b72a';
+        }
+    } catch (e) {
+        console.error("Error checking cookies:", e);
+        document.getElementById('cookieStatusText').innerHTML = '<span style="color: #dc3545;">Error checking status</span>';
+    }
+}
+
+// Toggle cookie input visibility
+function toggleBiddingCookieInput() {
+    const inputDiv = document.getElementById('biddingCookieInput');
+    inputDiv.style.display = inputDiv.style.display === 'none' ? 'block' : 'none';
+}
+
+// Validate cookies JSON
+function validateBiddingCookies() {
+    const input = document.getElementById('cookieInput').value.trim();
+    const msgEl = document.getElementById('cookieValidationMsg');
+    
+    if (!input) {
+        msgEl.innerText = "Please paste cookie JSON";
+        msgEl.style.color = '#dc3545';
+        return false;
+    }
+    
+    try {
+        // Try to parse as JSON
+        let json = JSON.parse(input);
+        
+        // If it's a single object, wrap it in an array
+        if (!Array.isArray(json)) {
+            json = [json];
+        }
+        
+        // Validate cookie structure
+        if (json.length === 0) {
+            msgEl.innerText = "Cookie array is empty";
+            msgEl.style.color = '#dc3545';
+            return false;
+        }
+        
+        // Check if it looks like a cookie object
+        const firstCookie = json[0];
+        if (!firstCookie.name && !firstCookie.domain) {
+            msgEl.innerText = "Invalid cookie format. Expected objects with 'name' and 'domain' fields.";
+            msgEl.style.color = '#dc3545';
+            return false;
+        }
+        
+        msgEl.innerText = `✅ Valid JSON (${json.length} cookies)`;
+        msgEl.style.color = '#42b72a';
+        return true;
+        
+    } catch (e) {
+        msgEl.innerText = "Invalid JSON: " + e.message;
+        msgEl.style.color = '#dc3545';
+        return false;
+    }
+}
+
+// Save cookies to Supabase
+async function saveBiddingCookies() {
+    const input = document.getElementById('cookieInput').value.trim();
+    if (!input) {
+        alert("Please paste cookie JSON");
+        return;
+    }
+    
+    try {
+        // Validate first
+        let json = JSON.parse(input);
+        if (!Array.isArray(json)) {
+            json = [json];
+        }
+        
+        // Validate cookie structure
+        if (json.length === 0) {
+            alert("Cookie array is empty");
+            return;
+        }
+        
+        const currentUser = getCurrentUser();
+        const updatedBy = currentUser ? currentUser.username : 'admin';
+        
+        // Delete existing cookies and insert new one
+        await supabaseClient
+            .from('bidding_cookies')
+            .delete()
+            .neq('id', 0); // Delete all (id is always > 0)
+        
+        const { error } = await supabaseClient
+            .from('bidding_cookies')
+            .insert([{
+                cookies_json: json,
+                updated_by: updatedBy
+            }]);
+        
+        if (error) throw error;
+        
+        // Success
+        document.getElementById('cookieInput').value = '';
+        document.getElementById('cookieValidationMsg').innerText = '';
+        document.getElementById('biddingCookieInput').style.display = 'none';
+        checkBiddingCookieStatus();
+        
+        alert("✅ Cookies saved successfully!");
+        
+    } catch (e) {
+        console.error("Error saving cookies:", e);
+        alert("Error saving cookies: " + e.message);
+    }
+}
+
+// Start watching auctions - Save to Supabase
+async function startBiddingWatch() {
+    const text = document.getElementById('biddingPostUrls').value.trim();
+    if (!text) return alert("Please enter URLs");
+
+    // Make sure we're on the bidding section
+    if (!document.getElementById('biddingSection').classList.contains('active')) {
+        switchSection('bidding');
+    }
+
+    const urls = text.split(/\r?\n/).filter(u => u.trim().length > 0);
+    const myName = "Ken Kaneki"; // Always use Ken Kaneki
+    const msg = document.getElementById('biddingMsg');
+    
+    document.getElementById('biddingPostUrls').value = '';
+    msg.innerText = `Adding ${urls.length} auctions...`;
+
+    const currentUser = getCurrentUser();
+    const createdBy = currentUser ? currentUser.username : 'admin';
+
+    for (let i = 0; i < urls.length; i++) {
+        const url = urls[i].trim();
+        msg.innerText = `Processing ${i+1}/${urls.length}: ${url.substring(0, 30)}...`;
+        
+        try {
+            console.log(`[Watch All] Processing URL ${i+1}/${urls.length}: ${url}`);
+            
+            // First, ensure post exists
+            const { data: postData, error: postError } = await supabaseClient
+                .from('bidding_posts')
+                .upsert([{
+                    post_url: url
+                }], {
+                    onConflict: 'post_url'
+                })
+                .select();
+            
+            if (postError) {
+                console.error(`[Watch All] Post error for ${url}:`, postError);
+                throw postError;
+            }
+            console.log(`[Watch All] Post saved:`, postData);
+            
+            // Create or update watcher
+            const { data: watcherData, error: watcherError } = await supabaseClient
+                .from('bidding_watchers')
+                .upsert([{
+                    post_url: url,
+                    my_name: myName,
+                    interval_sec: BIDDING_POLL_INTERVAL,
+                    is_running: true,
+                    created_by: createdBy
+                }], {
+                    onConflict: 'post_url,created_by'
+                })
+                .select();
+            
+            if (watcherError) {
+                console.error(`[Watch All] Watcher error for ${url}:`, watcherError);
+                throw watcherError;
+            }
+            console.log(`[Watch All] Watcher saved:`, watcherData);
+            
+            // Create panel first (even if data loading fails)
+            createBiddingPanelIfNotExists(url);
+            
+            // Then try to load data
+            try {
+                await loadBiddingDataForPost(url, myName);
+            } catch (loadError) {
+                console.error("Error loading data (but panel created):", loadError);
+                // Panel is already created, just show error in status
+                const panelId = btoa(url);
+                const statusEl = document.getElementById(`bidding-status-${panelId}`);
+                if (statusEl) {
+                    statusEl.innerText = `Error loading: ${loadError.message}`;
+                }
+            }
+            
+        } catch (e) {
+            console.error(`[Watch All] Failed to start watcher for ${url}:`, e);
+            msg.innerText = `Error for ${url.substring(0, 30)}: ${e.message}`;
+            msg.style.color = '#dc3545';
+            
+            // Still try to create panel even on error
+            try {
+                createBiddingPanelIfNotExists(url);
+                const panelId = btoa(url);
+                const statusEl = document.getElementById(`bidding-status-${panelId}`);
+                if (statusEl) {
+                    statusEl.innerText = `Error: ${e.message}`;
+                    statusEl.style.color = '#dc3545';
+                }
+            } catch (panelError) {
+                console.error("Failed to create panel:", panelError);
+            }
+        }
+
+        // Small delay between requests
+        if (i < urls.length - 1) {
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+    
+    // Verify data was saved by checking Supabase
+    try {
+        const { data: savedWatchers, error: verifyError } = await supabaseClient
+            .from('bidding_watchers')
+            .select('post_url, is_running')
+            .eq('created_by', createdBy)
+            .eq('is_running', true);
+        
+        if (verifyError) {
+            console.error("[Watch All] Verification error:", verifyError);
+        } else {
+            console.log(`[Watch All] Verified ${savedWatchers?.length || 0} active watchers in Supabase:`, savedWatchers);
+        }
+    } catch (verifyErr) {
+        console.error("[Watch All] Error verifying:", verifyErr);
+    }
+    
+    msg.innerText = `✅ ${urls.length} auction(s) added! Server will start monitoring within 10 seconds.`;
+    msg.style.color = '#42b72a';
+}
+
+// Stop all auctions
+async function stopAllBidding() {
+    try {
+        const currentUser = getCurrentUser();
+        const createdBy = currentUser ? currentUser.username : 'admin';
+        
+        // Stop all watchers created by current user
+        const { error } = await supabaseClient
+            .from('bidding_watchers')
+            .update({ is_running: false })
+            .eq('created_by', createdBy)
+            .eq('is_running', true);
+        
+        if (error) throw error;
+        
+        document.getElementById('biddingMsg').innerText = "✅ Stopped all your watchers";
+        document.getElementById('biddingDashboard').innerHTML = '<div class="bidding-empty-state" id="biddingEmptyState"><p>No auctions being watched. Add Facebook post URLs to start tracking bids.</p></div>';
+        biddingAuctions = {};
+        
+        // Reload watchers
+        await loadBiddingWatchers();
+    } catch (error) {
+        console.error("Failed to stop all:", error);
+        alert("Failed to stop watchers: " + error.message);
+    }
+}
+
+// Stop one auction - Delete all data
+async function stopOneBidding(postUrl) {
+    if (!confirm(`Are you sure you want to stop and delete all data for this auction?`)) {
+        return;
+    }
+    
+    try {
+        const currentUser = getCurrentUser();
+        const createdBy = currentUser ? currentUser.username : 'admin';
+        
+        // Delete all bids for this post
+        const { error: bidsError } = await supabaseClient
+            .from('bidding_bids')
+            .delete()
+            .eq('post_url', postUrl);
+        
+        if (bidsError) console.error("Error deleting bids:", bidsError);
+        
+        // Delete watcher
+        const { error: watcherError } = await supabaseClient
+            .from('bidding_watchers')
+            .delete()
+            .eq('post_url', postUrl)
+            .eq('created_by', createdBy);
+        
+        if (watcherError) throw watcherError;
+        
+        // Delete post (this will cascade delete bids and watchers due to foreign key)
+        const { error: postError } = await supabaseClient
+            .from('bidding_posts')
+            .delete()
+            .eq('post_url', postUrl);
+        
+        if (postError) console.error("Error deleting post:", postError);
+        
+        // Remove panel from UI
+        const el = document.getElementById(`bidding-panel-${btoa(postUrl)}`);
+        if (el) el.remove();
+        delete biddingAuctions[postUrl];
+        
+        // Show empty state if no panels left
+        if (document.querySelectorAll('.bidding-auction-panel').length === 0) {
+            document.getElementById('biddingDashboard').innerHTML = '<div class="bidding-empty-state" id="biddingEmptyState"><p>No auctions being watched. Add Facebook post URLs to start tracking bids.</p></div>';
+        }
+    } catch (error) {
+        console.error("Failed to stop auction:", error);
+        alert("Failed to stop watcher: " + error.message);
+    }
+}
+
+// Get post ID from URL
+function getBiddingPostId(url) {
+    const match = url.match(/\/p\/([A-Za-z0-9]+)/) || url.match(/\/posts\/(\d+)/) || url.match(/([A-Za-z0-9]+)\/?$/);
+    return match ? match[1] : '???';
+}
+
+// Create auction panel
+function createBiddingPanelIfNotExists(url) {
+    const id = `bidding-panel-${btoa(url)}`;
+    if (document.getElementById(id)) return;
+
+    const dashboard = document.getElementById('biddingDashboard');
+    if (!dashboard) {
+        console.error("biddingDashboard element not found!");
+        return;
+    }
+    
+    const emptyState = document.getElementById('biddingEmptyState');
+    if (emptyState) emptyState.remove();
+
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = 'bidding-auction-panel';
+    div.innerHTML = `
+        <div class="bidding-auction-header">
+            <div>
+                <div class="bidding-auction-title" id="bidding-title-${btoa(url)}"><a href="${url}" target="_blank">Post #${getBiddingPostId(url)}</a></div>
+                <div class="bidding-auction-status" id="bidding-status-${btoa(url)}">Initializing...</div>
+            </div>
+            <button class="btn btn-secondary" onclick="stopOneBidding('${url}')" style="background: #dc3545; color: white; border-color: #dc3545; padding: 5px 10px; font-size: 0.8em;">Stop</button>
+        </div>
+        <div class="bidding-images-row" id="bidding-img-${btoa(url)}"></div>
+        <div class="bidding-manual-img-control" style="margin-bottom: 10px; display: flex; gap: 5px;">
+            <input type="text" id="bidding-paste-target-${btoa(url)}" placeholder="Paste Image (Ctrl+V) here..." style="flex: 1; padding: 5px; border: 1px solid var(--border-color); border-radius: 4px;" onpaste="handleBiddingPaste(event, '${url}')">
+        </div>
+        <div class="bidding-manual-img-control" style="margin-bottom: 10px; display: flex; gap: 5px;">
+            <input type="text" id="bidding-img-url-${btoa(url)}" placeholder="Or paste Image URL..." style="flex: 1; padding: 5px; border: 1px solid var(--border-color); border-radius: 4px;">
+            <button class="btn btn-primary" onclick="addBiddingImageUrl('${url}')" style="padding: 5px 15px; font-size: 0.85em;">Add URL</button>
+        </div>
+        <div class="bidding-grid" id="bidding-grid-${btoa(url)}"></div>
+    `;
+    dashboard.appendChild(div);
+    
+    // Scroll the new panel into view
+    setTimeout(() => {
+        div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+}
+
+// Load bidding data for a post from Supabase
+async function loadBiddingDataForPost(postUrl, myName) {
+    try {
+        // Always use "Ken Kaneki" as the name
+        const myNameFixed = "Ken Kaneki";
+        
+        // Get post data
+        const { data: postData, error: postError } = await supabaseClient
+            .from('bidding_posts')
+            .select('post_number, images')
+            .eq('post_url', postUrl)
+            .maybeSingle();
+        
+        if (postError && postError.code !== 'PGRST116') {
+            console.error("Error loading post:", postError);
+        }
+        
+        const postNumber = postData?.post_number || '???';
+        const images = postData?.images || [];
+        
+        // Get all bids for this post
+        const { data: bidsData, error: bidsError } = await supabaseClient
+            .from('bidding_bids')
+            .select('*')
+            .eq('post_url', postUrl)
+            .order('timestamp', { ascending: false });
+        
+        if (bidsError) {
+            console.error("Error loading bids:", bidsError);
+            throw bidsError;
+        }
+        
+        // Process bids: group by item_number and find highest for each
+        const itemsByNumber = {};
+        const bidsByItem = {};
+        
+        (bidsData || []).forEach(bid => {
+            const itemNum = bid.item_number;
+            if (!bidsByItem[itemNum]) {
+                bidsByItem[itemNum] = [];
+            }
+            bidsByItem[itemNum].push(bid);
+        });
+        
+        // For each item, find highest bid and build history
+        Object.keys(bidsByItem).forEach(itemNum => {
+            const itemBids = bidsByItem[itemNum];
+            // Sort by amount descending, then by timestamp descending
+            itemBids.sort((a, b) => {
+                if (b.amount !== a.amount) return b.amount - a.amount;
+                return new Date(b.timestamp) - new Date(a.timestamp);
+            });
+            
+            const highestBid = itemBids[0];
+            const history = itemBids.slice(1, 10); // Keep last 9 for history (excluding current)
+            
+            // Determine if user is winning or has bid (case-insensitive, trimmed)
+            const myNameNormalized = myNameFixed.trim().toLowerCase();
+            const userHasBid = itemBids.some(b => b.bidder_name?.trim().toLowerCase().includes(myNameNormalized));
+            const isWinning = highestBid.bidder_name?.trim().toLowerCase().includes(myNameNormalized);
+            
+            itemsByNumber[itemNum] = {
+                item_number: parseInt(itemNum),
+                amount: highestBid.amount,
+                bidder_name: highestBid.bidder_name,
+                raw_comment: highestBid.raw_comment,
+                relative_time: highestBid.relative_time,
+                comment_images: highestBid.comment_images || [],
+                timestamp: highestBid.timestamp,
+                userHasBid: userHasBid,
+                isWinning: isWinning,
+                history: history.map(b => ({
+                    amount: b.amount,
+                    bidder_name: b.bidder_name,
+                    comment_images: b.comment_images || []
+                }))
+            };
+        });
+        
+        // Convert to array and sort by item_number
+        const items = Object.values(itemsByNumber).sort((a, b) => a.item_number - b.item_number);
+        
+        // Call handleBiddingUpdate with processed data
+        handleBiddingUpdate({
+            postUrl: postUrl,
+            postNumber: postNumber,
+            items: items,
+            images: images,
+            lastUpdated: new Date().toISOString(),
+            status: 'loaded',
+            myName: "Ken Kaneki" // Always use Ken Kaneki
+        });
+        
+    } catch (error) {
+        console.error("Error loading bidding data:", error);
+        const panelId = btoa(postUrl);
+        const statusEl = document.getElementById(`bidding-status-${panelId}`);
+        if (statusEl) {
+            statusEl.innerText = `Error: ${error.message}`;
+        }
+    }
+}
+
+// Handle paste image - Upload to Cloudinary and save to Supabase
+async function handleBiddingPaste(e, postUrl) {
+    e.preventDefault();
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+            const blob = item.getAsFile();
+            try {
+                // Upload directly to Cloudinary using blob
+                const formData = new FormData();
+                formData.append('file', blob);
+                formData.append('upload_preset', 'bh_smry_upload');
+                
+                const res = await fetch('https://api.cloudinary.com/v1_1/daye1yfzy/image/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!res.ok) throw new Error('Cloudinary upload failed');
+                
+                const data = await res.json();
+                if (data.secure_url) {
+                    // Get current images from Supabase
+                    const { data: postData } = await supabaseClient
+                        .from('bidding_posts')
+                        .select('images')
+                        .eq('post_url', postUrl)
+                        .maybeSingle();
+                    
+                    const currentImages = postData?.images || [];
+                    if (!currentImages.includes(data.secure_url)) {
+                        currentImages.push(data.secure_url);
+                    }
+                    
+                    // Update in Supabase
+                    const { error } = await supabaseClient
+                        .from('bidding_posts')
+                        .upsert({
+                            post_url: postUrl,
+                            images: currentImages
+                        }, {
+                            onConflict: 'post_url'
+                        });
+                    
+                    if (error) throw error;
+                    
+                    // Reload the panel to show new image
+                    await loadBiddingDataForPost(postUrl, null);
+                } else {
+                    alert("Upload failed: No URL returned");
+                }
+            } catch (err) {
+                console.error("Upload failed:", err);
+                alert("Upload failed: " + err.message);
+            }
+        }
+    }
+}
+
+// Add image URL - Save to Supabase
+async function addBiddingImageUrl(postUrl) {
+    const inputId = `bidding-img-url-${btoa(postUrl)}`;
+    const input = document.getElementById(inputId);
+    const url = input.value.trim();
+    
+    if (!url) return;
+
+    try {
+        // Get current images from Supabase
+        const { data: postData } = await supabaseClient
+            .from('bidding_posts')
+            .select('images')
+            .eq('post_url', postUrl)
+            .single();
+        
+        const currentImages = postData?.images || [];
+        currentImages.push(url);
+        
+        // Update in Supabase
+        const { error } = await supabaseClient
+            .from('bidding_posts')
+            .update({ images: currentImages })
+            .eq('post_url', postUrl);
+        
+        if (error) throw error;
+        
+        input.value = '';
+    } catch (err) {
+        console.error("Failed to add image URL:", err);
+        alert("Failed to add image URL: " + err.message);
+    }
+}
+
+// Open image modal
+function openBiddingImageModal(src) {
+    document.getElementById('biddingModalImg').src = src;
+    document.getElementById('biddingImgModal').style.display = 'flex';
+}
+
+// Close image modal
+function closeBiddingImageModal() {
+    document.getElementById('biddingImgModal').style.display = 'none';
+}
+
+// Log activity
+function logBiddingActivity(message, type, postUrl, postNumber) {
+    const container = document.getElementById('biddingActivityFeed');
+    if (container.innerText.includes("No activity yet")) container.innerHTML = "";
+    
+    const linkHtml = postUrl ? ` <a href="${postUrl}" target="_blank" style="color: var(--primary-color);">#${postNumber || '???'}</a>` : '';
+    
+    const div = document.createElement('div');
+    div.className = 'bidding-activity-item';
+    div.innerHTML = `
+        <div class="bidding-act-time">${new Date().toLocaleTimeString()}</div>
+        <div class="bidding-act-msg ${type}">${message}${linkHtml}</div>
+    `;
+    container.prepend(div);
+    
+    // Keep only last 50 items
+    while (container.children.length > 50) {
+        container.removeChild(container.lastChild);
+    }
+}
+
+// Handle bidding update (from Supabase Realtime or manual load)
+function handleBiddingUpdate(data) {
+    const { postUrl, postNumber, items, images, lastUpdated, status } = data;
+    
+    createBiddingPanelIfNotExists(postUrl);
+    const panelId = btoa(postUrl);
+    const statusEl = document.getElementById(`bidding-status-${panelId}`);
+    if (statusEl) {
+        statusEl.innerText = `Updated: ${new Date(lastUpdated).toLocaleTimeString()}`;
+    }
+
+    // Update Post Number Title
+    if (postNumber && postNumber !== '???') {
+        const titleEl = document.getElementById(`bidding-title-${panelId}`);
+        if (titleEl && (titleEl.innerText.includes('Post #???') || !titleEl.innerText.includes(postNumber))) {
+            titleEl.innerHTML = `<a href="${postUrl}" target="_blank">Post #${postNumber}</a>`;
+        }
+    }
+
+    // Images
+    const imgContainer = document.getElementById(`bidding-img-${panelId}`);
+    if (images && images.length > 0) {
+        if (!biddingAuctions[postUrl]) biddingAuctions[postUrl] = {};
+        biddingAuctions[postUrl].images = images;
+        
+        imgContainer.innerHTML = images.map(src => `<img src="${src}" onclick="openBiddingImageModal('${src}')" style="height: 100px; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" />`).join('');
+    }
+
+    // Items Grid
+    const grid = document.getElementById(`bidding-grid-${panelId}`);
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    // State Logic
+    if (!biddingAuctions[postUrl]) biddingAuctions[postUrl] = {};
+    const oldItems = biddingAuctions[postUrl].items || {};
+
+    items.forEach(item => {
+        const oldItem = oldItems[item.item_number];
+
+        // Detect Notifications
+        if (oldItem) {
+            // Outbid: Was winning, now not winning, and I have bid on it
+            if (oldItem.isWinning && !item.isWinning && item.userHasBid) {
+                logBiddingActivity(`Outbid on #${item.item_number} by ${item.bidder_name}`, 'bidding-act-outbid', postUrl, postNumber);
+            }
+            // Winning: Was not winning, now winning
+            if (!oldItem.isWinning && item.isWinning) {
+                logBiddingActivity(`You are winning #${item.item_number} (${item.amount})`, 'bidding-act-bid', postUrl, postNumber);
+            }
+        } else if (item.isWinning) {
+            // Initial load or new item winning
+            if (Object.keys(oldItems).length > 0) {
+                logBiddingActivity(`You took lead on #${item.item_number} (${item.amount})`, 'bidding-act-bid', postUrl, postNumber);
+            }
+        }
+
+        // Determine Status Logic
+        let statusClass = 'bidding-neutral';
+        let statusText = 'CURRENT';
+        
+        if (item.isWinning) {
+            statusClass = 'bidding-winning';
+            statusText = 'WINNING';
+        } else if (item.userHasBid) {
+            statusClass = 'bidding-outbid';
+            statusText = 'OUTBID';
+        }
+
+        let timeStr = "";
+        try {
+            const date = new Date(item.timestamp);
+            timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch(e) {}
+
+        // Build history HTML
+        let historyHtml = '';
+        if (item.history && item.history.length > 0) {
+            historyHtml = item.history.map(h => {
+                let imgIcon = '';
+                if (h.comment_images && h.comment_images.length > 0) {
+                    imgIcon = ` <a href="${h.comment_images[0]}" target="_blank" style="color: #4db6ac; text-decoration: none;">📷</a>`;
+                }
+                return `<div>${h.amount.toLocaleString()} - ${h.bidder_name}${imgIcon}</div>`;
+            }).join('');
+        }
+
+        const card = document.createElement('div');
+        card.className = `bidding-item-card ${statusClass}`;
+        
+        // Check for images in current leader
+        let leaderImgIcon = '';
+        if (item.comment_images && item.comment_images.length > 0) {
+            leaderImgIcon = `<a href="${item.comment_images[0]}" target="_blank" style="color: inherit; text-decoration: none; margin-left: 5px;">📷</a>`;
+        }
+
+        card.innerHTML = `
+            <div class="bidding-item-header">
+                <div class="bidding-item-num">#${item.item_number}</div>
+                <div class="bidding-status-badge">${statusText}</div>
+            </div>
+            <div class="bidding-price">${item.amount.toLocaleString()}</div>
+            <div class="bidding-details-overlay">
+                <strong>Current Leader:</strong><br>
+                ${item.bidder_name} ${leaderImgIcon} (${timeStr})
+                <hr style="margin: 5px 0; border-color: rgba(255,255,255,0.2);">
+                <strong>History:</strong><br>
+                ${historyHtml || 'No history'}
+            </div>
+        `;
+        grid.appendChild(card);
+
+        if (!biddingAuctions[postUrl].items) biddingAuctions[postUrl].items = {};
+        biddingAuctions[postUrl].items[item.item_number] = item;
+    });
+}
+

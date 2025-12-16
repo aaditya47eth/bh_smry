@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+.DS_Store
+.env
+chrome_data_*
+dist
+coverage
+

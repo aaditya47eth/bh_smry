@@ -1,0 +1,21 @@
+HOW TO EXPORT COOKIES FOR LOCAL AUTHENTICATION
+==============================================
+
+If you cannot use the CHROME_PROFILE_DIR method (e.g., because you want to keep your main browser open while the bot runs), you can use a cookies file.
+
+1. Install a cookie export extension like "EditThisCookie" or "Get cookies.txt LOCALLY".
+   (Be careful with extensions; uninstall them after use).
+
+2. Log into Facebook on your regular browser.
+
+3. Open the extension and export cookies for facebook.com.
+   - Ensure you export as JSON format.
+
+4. Paste the content into a file named `cookies.json` in this project's root folder.
+
+5. In your `.env` file, make sure `CHROME_PROFILE_DIR` is blank.
+
+6. Run the bot. It will load these cookies into Puppeteer.
+
+Note: Cookies expire. If the bot stops working, you may need to re-export fresh cookies.
+

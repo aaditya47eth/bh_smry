@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FB Auction Tracker</title>
+    <link rel="icon" href="https://res.cloudinary.com/daye1yfzy/image/upload/v1765211893/ctcqhyxglwe4j13sorwu.png">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; background: #f0f2f5; }
+        
+        /* Layout Grid */
+        .main-container { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+        
+        /* Sidebar Styles */
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        .controls { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        
+        h1 { color: #1877f2; margin-top: 0; }
+        h3 { margin-top: 0; font-size: 1.1em; color: #333; }
+        
+        label { display: block; margin-top: 10px; font-weight: bold; font-size: 0.9em; }
+        input { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;}
+        
+        button { background: #1877f2; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-weight: bold; width: 100%; }
+        button.stop { background: #dc3545; }
+        button.secondary { background: #e4e6eb; color: #050505; }
+        button:hover { opacity: 0.9; }
+
+        /* Minimal Auth */
+        .auth-status { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
+        .auth-details { display: none; margin-top: 10px; }
+        .auth-details.open { display: block; }
+
+        /* Activity Feed */
+        .activity-panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); max-height: 400px; overflow-y: auto; }
+        .activity-item { padding: 8px 0; border-bottom: 1px solid #eee; font-size: 0.9em; }
+        .activity-item:last-child { border-bottom: none; }
+        .act-time { color: #888; font-size: 0.8em; }
+        .act-msg { margin-top: 2px; }
+        .act-outbid { color: #dc3545; font-weight: 500; }
+        .act-bid { color: #28a745; font-weight: 500; }
+
+        /* Dashboard Layout */
+        #dashboard { display: flex; flex-direction: column; gap: 30px; }
+        
+        .auction-panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .auction-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .auction-title { font-size: 1.1em; font-weight: bold; color: #333; word-break: break-all; }
+        .auction-status { font-size: 0.9em; color: #666; }
+
+        .images-row { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 15px; padding-bottom: 10px; }
+        .images-row img { height: 100px; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; transition: transform 0.2s; }
+        .images-row img:hover { transform: scale(1.05); }
+
+        /* Compact Grid */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+        
+        .item-card { 
+            background: white; 
+            padding: 10px; 
+            border-radius: 6px; 
+            border: 1px solid #eee; 
+            border-left: 5px solid #ddd; 
+            position: relative;
+            cursor: default;
+        }
+        
+        /* Status Colors */
+        .item-card.winning { border-left-color: #28a745; background-color: #f0fff4; } /* Green */
+        .item-card.outbid { border-left-color: #dc3545; background-color: #fff5f5; }  /* Red */
+        .item-card.neutral { border-left-color: #ffc107; background-color: #fffbf0; } /* Yellow */
+        
+        .item-header { display: flex; justify-content: space-between; align-items: center; }
+        .item-num { font-size: 1.1em; font-weight: bold; color: #333; }
+        .price { font-size: 1.4em; font-weight: bold; color: #000; margin: 5px 0; }
+        
+        /* Status Badge */
+        .status-badge { font-size: 0.7em; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; color: white; }
+        .winning .status-badge { background: #28a745; }
+        .outbid .status-badge { background: #dc3545; }
+        .neutral .status-badge { background: #ffc107; color: black; }
+
+        /* Details on Hover */
+        .details-overlay {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 180px;
+            font-size: 0.8em;
+            z-index: 10;
+            pointer-events: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .item-card:hover .details-overlay { display: block; }
+
+        /* Image Modal */
+        #img-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        #img-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h1>🏷️ Tracker</h1>
+
+            <!-- Minimal Auth -->
+            <div class="controls" style="border-left: 5px solid #1877f2;">
+                <div class="auth-status">
+                    <span id="cookieStatus">Checking Auth...</span>
+                    <a href="#" onclick="toggleAuth()" style="font-size:0.8em; text-decoration:underline;">Update Cookies</a>
+                </div>
+                <div id="authDetails" class="auth-details">
+                    <textarea id="cookieInput" placeholder='Paste cookies.json content here...' style="width: 100%; height: 60px; font-family: monospace; font-size: 0.8em; margin-top:5px;"></textarea>
+                    <button onclick="saveCookies()" style="background: #42b72a;">Save</button>
+                </div>
+            </div>
+
+            <!-- Add Auction -->
+            <div class="controls">
+                <h3>Add Auctions</h3>
+                <textarea id="postUrls" placeholder="Paste Facebook Post URLs (one per line)..." style="width: 100%; height: 100px; font-family: monospace; padding: 8px;"></textarea>
+                <button onclick="startWatch()">+ Watch All</button>
+                <button class="stop" onclick="stopAll()" style="margin-top: 5px;">Stop All</button>
+                <p id="msg" style="color: #666; margin-top: 10px; font-size: 0.8em;"></p>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="activity-panel">
+                <h3>🔔 Activity</h3>
+                <div id="activity-feed">
+                    <div style="color:#999; font-style:italic;">No activity yet...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="dashboard">
+            <!-- Auction Panels will appear here -->
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="img-modal" onclick="this.style.display='none'">
+        <img id="modal-img" src="" onclick="event.stopPropagation()">
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const auctions = {}; // Local state: { postUrl: { items: {}, images: [] } }
+        
+        // Hardcoded defaults
+        const MY_NAME = "Ken Kaneki";
+        const POLL_INTERVAL = 120; // Increased to 60s for safety
+
+        function getPostId(url) {
+            const match = url.match(/\/p\/([A-Za-z0-9]+)/) || url.match(/\/posts\/(\d+)/) || url.match(/([A-Za-z0-9]+)\/?$/);
+            return match ? match[1] : '???';
+        }
+
+        async function handlePaste(e, postUrl) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file') {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        const base64 = event.target.result;
+                        try {
+                            const res = await fetch('/upload', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ imageBase64: base64 })
+                            });
+                            const data = await res.json();
+                            if (data.success && data.url) {
+                                let currentImages = auctions[postUrl]?.images || [];
+                                currentImages.push(data.url);
+                                await fetch('/images', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ postUrl, imageUrls: currentImages })
+                                });
+                            } else {
+                                console.error("Upload failed: No URL returned", data);
+                                alert("Upload failed: Server returned no URL");
+                            }
+                        } catch (err) {
+                            console.error("Upload failed:", err);
+                            alert("Upload failed");
+                        }
+                    };
+                    reader.readAsDataURL(blob);
+                }
+            }
+        }
+
+        async function addImageUrl(postUrl) {
+            const inputId = `img-url-${btoa(postUrl)}`;
+            const input = document.getElementById(inputId);
+            const url = input.value.trim();
+            
+            if (!url) return;
+
+            try {
+                let currentImages = auctions[postUrl]?.images || [];
+                currentImages.push(url);
+                
+                await fetch('/images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postUrl, imageUrls: currentImages })
+                });
+                
+                input.value = ''; // Clear input
+            } catch (err) {
+                console.error("Failed to add image URL:", err);
+                alert("Failed to add image URL");
+            }
+        }
+
+        function openModal(src) {
+            document.getElementById('modal-img').src = src;
+            document.getElementById('img-modal').style.display = 'flex';
+        }
+
+        function toggleAuth() {
+            document.getElementById('authDetails').classList.toggle('open');
+        }
+
+        // Check cookie status
+        fetch('/cookies').then(res => res.json()).then(data => {
+            const el = document.getElementById('cookieStatus');
+            if (data.exists) {
+                el.innerText = "✅ Logged In";
+                el.style.color = "green";
+            } else {
+                el.innerText = "❌ No Cookies";
+                el.style.color = "red";
+                toggleAuth(); // Open if missing
+            }
+        });
+
+        function saveCookies() {
+            const val = document.getElementById('cookieInput').value.trim();
+            if (!val) return alert("Please paste cookie JSON");
+            try {
+                const json = JSON.parse(val);
+                fetch('/cookies', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(json)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert("Saved!");
+                        document.getElementById('cookieStatus').innerText = "✅ Logged In";
+                        document.getElementById('cookieStatus').style.color = "green";
+                        document.getElementById('cookieInput').value = '';
+                        toggleAuth();
+                    }
+                });
+            } catch (e) {
+                alert("Invalid JSON format.");
+            }
+        }
+
+        async function startWatch() {
+            const text = document.getElementById('postUrls').value.trim();
+            if(!text) return alert("Please enter URLs");
+
+            const urls = text.split(/\r?\n/).filter(u => u.trim().length > 0);
+            const msg = document.getElementById('msg');
+            
+            document.getElementById('postUrls').value = '';
+            msg.innerText = `Queueing ${urls.length} auctions...`;
+
+            for (let i = 0; i < urls.length; i++) {
+                const url = urls[i].trim();
+                msg.innerText = `Processing ${i+1}/${urls.length}: ${url.substring(0, 30)}...`;
+                
+                try {
+                    const res = await fetch('/watch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ postUrl: url, intervalSec: POLL_INTERVAL, myName: MY_NAME })
+                    });
+                    const data = await res.json();
+                    
+                    if(data.success) {
+                        createPanelIfNotExists(url);
+                    } else {
+                        console.error("Failed to start:", url, data.error);
+                    }
+                } catch(e) {
+                    console.error("Req failed", e);
+                }
+
+                // Wait 5s before next one (staggered start)
+                if (i < urls.length - 1) {
+                    let countdown = 5;
+                    while(countdown > 0) {
+                        msg.innerText = `Next in ${countdown}s...`;
+                        await new Promise(r => setTimeout(r, 1000));
+                        countdown--;
+                    }
+                }
+            }
+            msg.innerText = "All queued!";
+        }
+
+        function stopAll() {
+            fetch('/stop', { method: 'POST' })
+            .then(() => {
+                document.getElementById('msg').innerText = "Stopped all";
+                document.getElementById('dashboard').innerHTML = '';
+            });
+        }
+
+        function stopOne(postUrl) {
+            fetch('/stop', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postUrl })
+            }).then(() => {
+                const el = document.getElementById(`panel-${btoa(postUrl)}`);
+                if(el) el.remove();
+            });
+        }
+
+        function createPanelIfNotExists(url) {
+            const id = `panel-${btoa(url)}`;
+            if (document.getElementById(id)) return;
+
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'auction-panel';
+            div.innerHTML = `
+                <div class="auction-header">
+                    <div>
+                        <div class="auction-title" id="title-${btoa(url)}"><a href="${url}" target="_blank">Post #${getPostId(url)}</a></div>
+                        <div class="auction-status" id="status-${btoa(url)}">Initializing...</div>
+                    </div>
+                    <button class="stop" style="margin:0; padding: 5px 10px; font-size: 0.8em; width:auto;" onclick="stopOne('${url}')">Stop</button>
+                </div>
+                <div class="images-row" id="img-${btoa(url)}"></div>
+                <div class="manual-img-control" style="margin-bottom: 10px; display: flex; gap: 5px;">
+                    <input type="text" id="paste-target-${btoa(url)}" placeholder="Paste Image (Ctrl+V) here..." style="flex: 1; padding: 5px;" onpaste="handlePaste(event, '${url}')">
+                </div>
+                <div class="manual-img-control" style="margin-bottom: 10px; display: flex; gap: 5px;">
+                     <input type="text" id="img-url-${btoa(url)}" placeholder="Or paste Image URL..." style="flex: 1; padding: 5px;">
+                     <button onclick="addImageUrl('${url}')" style="margin: 0; width: auto; background: #28a745;">Add URL</button>
+                </div>
+                <div class="grid" id="grid-${btoa(url)}"></div>
+            `;
+            document.getElementById('dashboard').appendChild(div);
+        }
+
+        function logActivity(message, type, postUrl, postNumber) {
+            const container = document.getElementById('activity-feed');
+            if(container.innerText.includes("No activity yet")) container.innerHTML = "";
+            
+            const linkHtml = postUrl ? ` <a href="${postUrl}" target="_blank">#${postNumber || '???'}</a>` : '';
+            
+            const div = document.createElement('div');
+            div.className = 'activity-item';
+            div.innerHTML = `
+                <div class="act-time">${new Date().toLocaleTimeString()}</div>
+                <div class="act-msg ${type}">${message}${linkHtml}</div>
+            `;
+            container.prepend(div);
+        }
+
+        socket.on('update', (data) => {
+            const { postUrl, postNumber, items, images, lastUpdated, status } = data;
+            
+            createPanelIfNotExists(postUrl);
+            const panelId = btoa(postUrl);
+            document.getElementById(`status-${panelId}`).innerText = `Updated: ${new Date(lastUpdated).toLocaleTimeString()}`;
+
+            // Update Post Number Title
+            if (postNumber && postNumber !== '???') {
+                const titleEl = document.getElementById(`title-${panelId}`);
+                if (titleEl.innerText.includes('Post #???') || !titleEl.innerText.includes(postNumber)) {
+                    titleEl.innerHTML = `<a href="${postUrl}" target="_blank">Post #${postNumber}</a>`;
+                }
+            }
+
+            // Images
+            const imgContainer = document.getElementById(`img-${panelId}`);
+            if (images) {
+                // Update local cache
+                if (!auctions[postUrl]) auctions[postUrl] = {};
+                auctions[postUrl].images = images;
+                
+                imgContainer.innerHTML = images.map(src => `<img src="${src}" onclick="openModal('${src}')" />`).join('');
+            }
+
+            // Items Grid
+            const grid = document.getElementById(`grid-${panelId}`);
+            grid.innerHTML = '';
+            
+            // State Logic
+            if (!auctions[postUrl]) auctions[postUrl] = {};
+            const oldItems = auctions[postUrl].items || {};
+
+            items.forEach(item => {
+                const oldItem = oldItems[item.item_number];
+
+                // Detect Notifications
+                if (oldItem) {
+                    // Outbid: Was winning, now not winning, and I have bid on it
+                    if (oldItem.isWinning && !item.isWinning && item.userHasBid) {
+                        logActivity(`Outbid on #${item.item_number} by ${item.bidder_name}`, 'act-outbid', postUrl, postNumber);
+                    }
+                    // Winning: Was not winning, now winning
+                    if (!oldItem.isWinning && item.isWinning) {
+                         logActivity(`You are winning #${item.item_number} (${item.amount})`, 'act-bid', postUrl, postNumber);
+                    }
+                } else if (item.isWinning) {
+                    // Initial load or new item winning
+                    // Only log if we have history to avoid spam on refresh
+                    if (Object.keys(oldItems).length > 0) {
+                        logActivity(`You took lead on #${item.item_number} (${item.amount})`, 'act-bid', postUrl, postNumber);
+                    }
+                }
+
+                // Determine Status Logic
+                let statusClass = 'neutral';
+                let statusText = 'CURRENT';
+                
+                if (item.isWinning) {
+                    statusClass = 'winning';
+                    statusText = 'WINNING';
+                } else if (item.userHasBid) {
+                    statusClass = 'outbid';
+                    statusText = 'OUTBID';
+                }
+
+                let timeStr = "";
+                try {
+                    const date = new Date(item.timestamp);
+                    timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                } catch(e) {}
+
+                // Build history HTML
+                let historyHtml = '';
+                if (item.history && item.history.length > 0) {
+                     historyHtml = item.history.map(h => {
+                         let imgIcon = '';
+                         if (h.comment_images && h.comment_images.length > 0) {
+                             imgIcon = ` <a href="${h.comment_images[0]}" target="_blank" style="color: #4db6ac; text-decoration: none;">📷</a>`;
+                         }
+                         return `<div>${h.amount.toLocaleString()} - ${h.bidder_name}${imgIcon}</div>`;
+                     }).join('');
+                }
+
+                const card = document.createElement('div');
+                card.className = `item-card ${statusClass}`;
+                
+                // Check for images in current leader
+                let leaderImgIcon = '';
+                if (item.comment_images && item.comment_images.length > 0) {
+                    leaderImgIcon = `<a href="${item.comment_images[0]}" target="_blank" style="color: inherit; text-decoration: none; margin-left: 5px;">📷</a>`;
+                }
+
+                card.innerHTML = `
+                    <div class="item-header">
+                        <div class="item-num">#${item.item_number}</div>
+                        <div class="status-badge">${statusText}</div>
+                    </div>
+                    <div class="price">${item.amount.toLocaleString()}</div>
+                    <div class="details-overlay">
+                        <strong>Current Leader:</strong><br>
+                        ${item.bidder_name} ${leaderImgIcon} (${timeStr})
+                        <hr style="margin: 5px 0; border-color: rgba(255,255,255,0.2);">
+                        <strong>History:</strong><br>
+                        ${historyHtml}
+                    </div>
+                `;
+                grid.appendChild(card);
+
+                if (!auctions[postUrl].items) auctions[postUrl].items = {};
+                auctions[postUrl].items[item.item_number] = item;
+            });
+        });
+    </script>
+</body>
+</html>
