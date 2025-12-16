@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lot View - Collection Manager</title>
+    <link rel="icon" type="image/png" href="https://res.cloudinary.com/daye1yfzy/image/upload/v1765211893/ctcqhyxglwe4j13sorwu.png">
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/lot_view.css">
 </head>
@@ -42,7 +43,9 @@
                 <img id="lockIcon" src="https://res.cloudinary.com/daye1yfzy/image/upload/v1762317008/lock-open-solid-full_bh6f8q.svg" alt="Lock" class="lock-icon-img">
             </button>
             
-            <label>Zoom:</label>
+            <span id="lotTotalDisplay" style="margin-left: 15px; font-weight: bold; font-size: 1.1em; color: #2c3e50;">Total: 0</span>
+            
+            <label style="margin-left: 20px;">Zoom:</label>
             <button onclick="decreaseSize()" class="zoom-btn">-</button>
             <input type="range" id="zoomSlider" min="50" max="150" step="10" value="100" oninput="setZoomLevel(this.value)">
             <span id="zoomLevel">100%</span>

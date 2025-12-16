@@ -173,6 +173,19 @@ function renderGallery() {
     const gallery = document.getElementById('gallery');
     gallery.innerHTML = '';
 
+    // Calculate and display grand total
+    const grandTotal = lotItems.reduce((sum, item) => {
+        if (!item.cancelled) {
+            return sum + (parseFloat(item.price) || 0);
+        }
+        return sum;
+    }, 0);
+    
+    const lotTotalDisplay = document.getElementById('lotTotalDisplay');
+    if (lotTotalDisplay) {
+        lotTotalDisplay.textContent = `Total: ${grandTotal.toLocaleString()}`; // formatted with commas
+    }
+
     if (lotItems.length === 0) {
         gallery.innerHTML = '<div class="loading">No items in this lot yet. Click "Add New" to add items.</div>';
         return;
