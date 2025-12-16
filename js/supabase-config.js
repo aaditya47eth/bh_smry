@@ -6,6 +6,9 @@
 const SUPABASE_URL = 'https://tqbeaihrdtkcroiezame.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxYmVhaWhyZHRrY3JvaWV6YW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NDk3ODMsImV4cCI6MjA3NzMyNTc4M30.TCpWEAhq08ivt3NbT7Lvw135qcCshkJH1X58y-T2rmw';
 
+// Backend URL for bidding service
+const BACKEND_URL = 'https://bh-smry.onrender.com';
+
 // Initialize Supabase client
 const { createClient } = supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);

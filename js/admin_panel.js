@@ -2872,6 +2872,11 @@ async function startBiddingWatch() {
         switchSection('bidding');
     }
 
+    // Call backend to wake it up (Render spins down free tier)
+    try {
+        fetch(`${BACKEND_URL}/status`).catch(() => {});
+    } catch(e) {}
+
     const urls = text.split(/\r?\n/).filter(u => u.trim().length > 0);
     const myName = "Ken Kaneki"; // Always use Ken Kaneki
     const msg = document.getElementById('biddingMsg');
