@@ -383,7 +383,11 @@ class FacebookWatcher {
         this.browser = await puppeteer.launch({
             executablePath: CHROME_EXEC_PATH,
             headless: HEADLESS,
-            args: launchArgs,
+            args: [
+                ...launchArgs,
+                '--disable-gpu',
+                '--disable-dev-shm-usage'
+            ],
             defaultViewport: null
         });
 
