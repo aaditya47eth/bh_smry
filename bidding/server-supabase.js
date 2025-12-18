@@ -451,14 +451,14 @@ class FacebookWatcher {
                 if (firstRun) {
                     console.log(`[${this.postUrl}] Opening page...`);
                     await this.page.goto(this.postUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-                    await this.page.waitForTimeout(5000);
+                    await sleep(5000);
                     console.log(`[${this.postUrl}] Initial Scraping...`);
                     await this.scrape(true, true);
                     firstRun = false;
                 } else {
                     console.log(`[${this.postUrl}] Reloading & Scraping...`);
                     await this.page.reload({ waitUntil: 'networkidle2' });
-                    await this.page.waitForTimeout(2000);
+                    await sleep(2000);
                     await this.scrape(false, false);
                 }
                 
