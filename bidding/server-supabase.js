@@ -613,46 +613,58 @@ class FacebookWatcher {
         }
 
         // Extract Comments
-        const comments = await this.page.evaluate(() => {
-            const results = [];
-            const commentNodes = document.querySelectorAll('[role="article"], [aria-label^="Comment"]');
-            
-            commentNodes.forEach(node => {
-                const fullText = node.innerText || "";
-                const lines = fullText.split('\n').filter(l => l.trim().length > 0);
+        let comments = [];
+        try {
+            comments = await this.page.evaluate(() => {
+                const results = [];
+                const commentNodes = document.querySelectorAll('[role="article"], [aria-label^="Comment"]');
                 
-                if (lines.length >= 2) {
-                    let author = "Unknown";
-                    const ariaLabel = node.getAttribute('aria-label');
-                    if (ariaLabel && ariaLabel.startsWith("Comment by")) {
-                        author = ariaLabel.replace("Comment by ", "");
-                    } else {
-                        author = lines[0];
-                    }
+                commentNodes.forEach(node => {
+                    const fullText = node.innerText || "";
+                    const lines = fullText.split('\n').filter(l => l.trim().length > 0);
                     
-                    const content = lines.slice(1).join('\n');
-                    
-                    const images = [];
-                    const imgNodes = node.querySelectorAll('a[href*="photo.php"], a[href*="/photos/"], div[role="button"] img');
-                    imgNodes.forEach(img => {
-                        const src = img.src || img.querySelector('img')?.src;
-                        if (src) images.push(src);
-                    });
-
-                    let timestampStr = new Date().toISOString();
-                    const timeLink = node.querySelector('a[href*="comment_id="], a[href*="reply_comment_id="], span > a[role="link"]');
-                    if (timeLink) {
-                        const t = timeLink.innerText;
-                        if (t && (t.match(/\d+[mhdy]/) || t.includes('Just now') || t.includes('Yesterday'))) {
-                            timestampStr = t;
+                    if (lines.length >= 2) {
+                        let author = "Unknown";
+                        const ariaLabel = node.getAttribute('aria-label');
+                        if (ariaLabel && ariaLabel.startsWith("Comment by")) {
+                            author = ariaLabel.replace("Comment by ", "");
+                        } else {
+                            author = lines[0];
                         }
-                    }
+                        
+                        const content = lines.slice(1).join('\n');
+                        
+                        const images = [];
+                        const imgNodes = node.querySelectorAll('a[href*="photo.php"], a[href*="/photos/"], div[role="button"] img');
+                        imgNodes.forEach(img => {
+                            const src = img.src || img.querySelector('img')?.src;
+                            if (src) images.push(src);
+                        });
 
-                    results.push({ author, content, timestampStr, images });
-                }
+                        let timestampStr = new Date().toISOString();
+                        const timeLink = node.querySelector('a[href*="comment_id="], a[href*="reply_comment_id="], span > a[role="link"]');
+                        if (timeLink) {
+                            const t = timeLink.innerText;
+                            if (t && (t.match(/\\d+[mhdy]/) || t.includes('Just now') || t.includes('Yesterday'))) {
+                                timestampStr = t;
+                            }
+                        }
+
+                        results.push({ author, content, timestampStr, images });
+                    }
+                });
+                return results;
             });
-            return results;
-        });
+        } catch (e) {
+            if (e && e.message && e.message.includes('detached frame')) {
+                console.warn(`[${this.postUrl}] Frame detached during comment extraction, reloading...`);
+                await this.page.reload({ waitUntil: 'networkidle2' });
+                await sleep(3000);
+                return;
+            } else {
+                throw e;
+            }
+        }
 
         // Process Bids
         let newBidsCount = 0;
