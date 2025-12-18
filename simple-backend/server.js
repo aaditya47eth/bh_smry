@@ -2,6 +2,7 @@ const express = require('express');
 const puppeteer = require('puppeteer');
 
 const app = express();
+// Railway uses PORT environment variable, defaulting to 3000
 const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON bodies
@@ -34,7 +35,8 @@ app.post('/scrape', async (req, res) => {
                 '--disable-dev-shm-usage', // Important for Docker/Render (avoids shared memory crashes)
                 '--disable-gpu'
             ],
-            executablePath: process.env.CHROME_EXEC_PATH || undefined // Allow overriding if needed
+            // On Railway with the correct Dockerfile, the path is standard
+            executablePath: process.env.CHROME_EXEC_PATH || '/usr/bin/google-chrome-stable'
         });
 
         const page = await browser.newPage();
@@ -77,7 +79,7 @@ app.post('/scrape', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+// Bind to 0.0.0.0 to ensure external access in containerized environments like Railway
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
 });
-

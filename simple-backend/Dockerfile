@@ -1,8 +1,7 @@
 FROM node:18-slim
 
-# Install latest chrome dev package and fonts to support major charsets (Chinese, Japanese, Arabic, Hebrew, Thai and a few others)
-# Note: this installs the necessary libs to make the bundled version of Chromium that Puppeteer
-# installs, work.
+# Install latest chrome dev package and fonts to support major charsets
+# Note: This installs the necessary libs to make the bundled version of Chromium that Puppeteer installs work.
 RUN apt-get update \
     && apt-get install -y wget gnupg \
     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
@@ -24,13 +23,13 @@ RUN npm install
 # Copy source files
 COPY . .
 
-# Set environment variables for Puppeteer
+# Set environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV CHROME_EXEC_PATH=/usr/bin/google-chrome-stable
+ENV PORT=3000
 
-# Expose port
+# Expose the port Railway will use (Railway overrides PORT env var)
 EXPOSE 3000
 
 # Start command
 CMD ["node", "server.js"]
-
