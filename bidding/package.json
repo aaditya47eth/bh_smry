@@ -9,6 +9,9 @@
     "dev": "nodemon server.js",
     "dev:supabase": "nodemon server-supabase.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "debug": "^4.4.3",
