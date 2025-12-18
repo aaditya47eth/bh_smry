@@ -295,6 +295,21 @@ class FacebookWatcher {
         this.postNumber = null;
     }
 
+    async checkLoginStatus() {
+        try {
+            return await this.page.evaluate(() => {
+                const text = document.body.innerText.toLowerCase();
+                if (text.includes('log in to facebook') || text.includes('login to facebook')) return false;
+                if (document.querySelector('input[name="email"]') || document.querySelector('button[name="login"]')) return false;
+                if (document.querySelector('a[href*="login.php"]')) return false;
+                return true;
+            });
+        } catch (e) {
+            console.warn(`[${this.postUrl}] Login check failed (assuming logged in):`, e.message);
+            return true;
+        }
+    }
+
     async start() {
         if (this.isRunning) return;
         this.isRunning = true;
@@ -436,14 +451,14 @@ class FacebookWatcher {
                 if (firstRun) {
                     console.log(`[${this.postUrl}] Opening page...`);
                     await this.page.goto(this.postUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-                    await sleep(5000);
+                    await this.page.waitForTimeout(5000);
                     console.log(`[${this.postUrl}] Initial Scraping...`);
                     await this.scrape(true, true);
                     firstRun = false;
                 } else {
                     console.log(`[${this.postUrl}] Reloading & Scraping...`);
                     await this.page.reload({ waitUntil: 'networkidle2' });
-                    await sleep(2000);
+                    await this.page.waitForTimeout(2000);
                     await this.scrape(false, false);
                 }
                 
@@ -492,6 +507,16 @@ class FacebookWatcher {
             }
         } catch (e) {
             console.warn(`[${this.postUrl}] Navigation error:`, e.message);
+            return;
+        }
+
+        // Check login status before scraping
+        const loggedIn = await this.checkLoginStatus();
+        if (!loggedIn) {
+            console.warn(`[${this.postUrl}] Login required. Please refresh Facebook cookies in Admin Panel.`);
+            this.broadcastState('Login required - update cookies');
+            // Wait a bit before next loop to avoid hammering
+            await sleep(15000);
             return;
         }
 
@@ -545,8 +570,11 @@ class FacebookWatcher {
 
         // Expand Comments
         try {
-            await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await sleep(2000);
+            // Scroll multiple times to trigger lazy loading of comments
+            for (let i = 0; i < 3; i++) {
+                await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+                await sleep(2000);
+            }
 
             const maxExpands = isFirstRun ? 25 : 5;
             
