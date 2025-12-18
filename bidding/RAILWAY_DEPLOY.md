@@ -13,8 +13,8 @@ This guide helps you deploy the Facebook Auction Tracker backend to Railway.
 1.  **New Project**: Go to Railway dashboard, click "New Project" > "Deploy from GitHub repo".
 2.  **Select Repository**: Choose your repository.
 3.  **Root Directory**: 
-    - Go to "Settings" -> "General" -> "Root Directory".
-    - Set it to `/bidding` (since the backend code is in this folder).
+    - You do **NOT** need to change the Root Directory anymore. I have added a `Dockerfile` to the root folder that handles everything.
+    - If you already set it to `/bidding`, that is also fine (it will use the inner Dockerfile).
 4.  **Environment Variables**:
     - Go to "Variables".
     - Add the following variables:
