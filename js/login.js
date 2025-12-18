@@ -3,7 +3,9 @@
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     // Check if already logged in
-    const currentUser = getCurrentUser();
+    // Try to use global getCurrentUser from supabase-config.js, fallback to local
+    const currentUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : getLocalUser();
+    
     if (currentUser) {
         window.location.href = 'dashboard.html';
         return;
@@ -14,7 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Get current user from session storage
-function getCurrentUser() {
+// Renaming to avoid conflict with shared config, though logic is identical
+function getLocalUser() {
     const userStr = sessionStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
 }

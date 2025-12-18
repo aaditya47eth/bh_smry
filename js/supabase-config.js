@@ -1,3 +1,67 @@
+// ============================================
+// SUPABASE CONFIGURATION
+// Shared across all pages
+// ============================================
+
+const SUPABASE_URL = 'https://tqbeaihrdtkcroiezame.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxYmVhaWhyZHRrY3JvaWV6YW1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NDk3ODMsImV4cCI6MjA3NzMyNTc4M30.TCpWEAhq08ivt3NbT7Lvw135qcCshkJH1X58y-T2rmw';
+
 // Backend URL for bidding service
 // const BACKEND_URL = 'https://bhsmry-production.up.railway.app';
 const BACKEND_URL = 'https://bh-smry.up.railway.app'; // Updated to match user's likely Railway domain if production fails
+
+// Initialize Supabase client
+// Check if supabase global exists (it should from the CDN script in index.html)
+let supabaseClient;
+if (typeof supabase !== 'undefined') {
+    const { createClient } = supabase;
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+    console.error('Supabase library not loaded!');
+}
+
+// Helper function to get current user from session
+function getCurrentUser() {
+    const userStr = sessionStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
+}
+
+// Helper function to set current user in session
+function setCurrentUser(user) {
+    sessionStorage.setItem('user', JSON.stringify(user));
+}
+
+// Helper function to clear session (logout)
+function clearSession() {
+    sessionStorage.removeItem('user');
+}
+
+// Helper function to check if user is authenticated
+function isAuthenticated() {
+    return getCurrentUser() !== null;
+}
+
+// Helper function to check user permission
+function hasPermission(permission) {
+    const user = getCurrentUser();
+    if (!user) return false;
+    
+    const accessLevel = user.access_level.toLowerCase(); // Convert to lowercase for comparison
+    
+    switch (permission) {
+        case 'view':
+            return ['admin', 'manager', 'viewer'].includes(accessLevel);
+        case 'add':
+            return ['admin', 'manager'].includes(accessLevel);
+        case 'edit':
+            return ['admin', 'manager'].includes(accessLevel);
+        case 'delete':
+            return ['admin', 'manager'].includes(accessLevel);
+        case 'manage':
+            return ['admin', 'manager'].includes(accessLevel);
+        case 'manage_users':
+            return ['admin', 'manager'].includes(accessLevel);
+        default:
+            return false;
+    }
+}
