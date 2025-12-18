@@ -49,6 +49,25 @@ async function getTesseract() {
     return Tesseract;
 }
 
+// Fetch latest cookies from Supabase (if available)
+async function loadLatestCookiesFromSupabase() {
+    try {
+        const { data: cookieData, error } = await supabase
+            .from('bidding_cookies')
+            .select('cookies_json')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (error) return null;
+        if (cookieData && cookieData.cookies_json && Array.isArray(cookieData.cookies_json)) {
+            return cookieData.cookies_json;
+        }
+    } catch (e) {
+        console.warn('Failed to load cookies from Supabase:', e.message);
+    }
+    return null;
+}
+
 // --- SUPABASE DATABASE FUNCTIONS ---
 
 async function insertBid(postUrl, item, amount, bidder, rawComment, relativeTime, commentImages = []) {
@@ -411,25 +430,8 @@ class FacebookWatcher {
 
         // Load cookies from Supabase (or fallback to local file)
         if (!CHROME_PROFILE_DIR) {
-            let cookies = null;
-            
-            // Try Supabase first
-            try {
-                const { data: cookieData, error } = await supabase
-                    .from('bidding_cookies')
-                    .select('cookies_json')
-                    .order('updated_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                
-                if (!error && cookieData && cookieData.cookies_json) {
-                    cookies = cookieData.cookies_json;
-                    console.log(`[${this.postUrl}] Loaded cookies from Supabase`);
-                }
-            } catch (e) {
-                console.warn('Error loading cookies from Supabase:', e.message);
-            }
-            
+            let cookies = await loadLatestCookiesFromSupabase();
+
             // Fallback to local file if Supabase doesn't have cookies
             if (!cookies && require('fs').existsSync('cookies.json')) {
                 cookies = JSON.parse(require('fs').readFileSync('cookies.json', 'utf-8'));
@@ -438,6 +440,7 @@ class FacebookWatcher {
             
             if (cookies && Array.isArray(cookies) && cookies.length > 0) {
                 await this.page.setCookie(...cookies);
+                console.log(`[${this.postUrl}] Cookies applied to page`);
             } else {
                 console.warn(`[${this.postUrl}] No cookies found. Facebook may require login.`);
             }
@@ -514,10 +517,31 @@ class FacebookWatcher {
         const loggedIn = await this.checkLoginStatus();
         if (!loggedIn) {
             console.warn(`[${this.postUrl}] Login required. Please refresh Facebook cookies in Admin Panel.`);
-            this.broadcastState('Login required - update cookies');
-            // Wait a bit before next loop to avoid hammering
-            await sleep(15000);
-            return;
+            // Try to refresh cookies from Supabase and retry once
+            const refreshedCookies = await loadLatestCookiesFromSupabase();
+            if (refreshedCookies && Array.isArray(refreshedCookies) && refreshedCookies.length > 0) {
+                try {
+                    await this.page.setCookie(...refreshedCookies);
+                    console.log(`[${this.postUrl}] Refreshed cookies applied, reloading page...`);
+                    await this.page.reload({ waitUntil: 'networkidle2' });
+                    await sleep(3000);
+                    const relogged = await this.checkLoginStatus();
+                    if (!relogged) {
+                        this.broadcastState('Login required - update cookies');
+                        await sleep(15000);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn(`[${this.postUrl}] Failed to apply refreshed cookies: ${e.message}`);
+                    this.broadcastState('Login required - update cookies');
+                    await sleep(15000);
+                    return;
+                }
+            } else {
+                this.broadcastState('Login required - update cookies');
+                await sleep(15000);
+                return;
+            }
         }
 
         // Scrape Post Number
