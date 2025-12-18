@@ -1,0 +1,5 @@
+node_modules
+bidding/node_modules
+.git
+.env
+
