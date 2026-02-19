@@ -1,0 +1,16 @@
+{
+  "name": "bh-smry",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "setup:web": "test -x web/node_modules/.bin/next && test -f web/node_modules/html2canvas/package.json || npm --prefix web install",
+    "predev": "npm run setup:web",
+    "dev": "npm --prefix web run dev",
+    "prebuild": "npm run setup:web",
+    "build": "npm --prefix web run build",
+    "prestart": "npm run setup:web",
+    "start": "npm --prefix web run start",
+    "lint": "npm --prefix web run lint"
+  }
+}
+

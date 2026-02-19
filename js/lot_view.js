@@ -37,22 +37,11 @@ window.addEventListener('DOMContentLoaded', () => {
     const userNameElement = document.getElementById('userName');
     userNameElement.textContent = user.username;
     
-    // Make username clickable only for non-guest users
-    if (user.id !== 'guest') {
+    // Guest mode removed: username is always clickable.
         userNameElement.style.cursor = 'pointer';
         userNameElement.onclick = () => {
             window.location.href = 'person_view.html';
         };
-    }
-    
-    // Show/hide login/logout buttons based on guest status
-    if (user.id === 'guest') {
-        document.getElementById('logoutBtn').style.display = 'none';
-        document.getElementById('loginBtn').style.display = 'inline-block';
-    } else {
-        document.getElementById('logoutBtn').style.display = 'inline-block';
-        document.getElementById('loginBtn').style.display = 'none';
-    }
     
     // Show admin panel button in header for admin only
     if (user.access_level.toLowerCase() === 'admin') {

@@ -105,20 +105,6 @@ function togglePasswordVisibility() {
     }
 }
 
-// Guest login function
-function guestLogin() {
-    // Create a guest session with viewer access
-    sessionStorage.setItem('user', JSON.stringify({
-        id: 'guest',
-        name: 'Guest',
-        username: 'Guest',
-        access_level: 'Viewer'
-    }));
-    
-    // Redirect to dashboard
-    window.location.href = 'dashboard.html';
-}
-
 // Show error message
 function showError(message) {
     const errorDiv = document.getElementById('errorMessage');
