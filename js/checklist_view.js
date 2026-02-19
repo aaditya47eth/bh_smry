@@ -32,15 +32,6 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
     }
     
-    // Show/hide login/logout buttons based on guest status
-    if (user.id === 'guest') {
-        document.getElementById('logoutBtn').style.display = 'none';
-        document.getElementById('loginBtn').style.display = 'inline-block';
-    } else {
-        document.getElementById('logoutBtn').style.display = 'inline-block';
-        document.getElementById('loginBtn').style.display = 'none';
-    }
-    
     // Show admin panel button in header for admin only
     if (user.access_level.toLowerCase() === 'admin') {
         document.getElementById('adminPanelHeaderBtn').style.display = 'inline-block';

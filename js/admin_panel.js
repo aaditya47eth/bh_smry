@@ -24,22 +24,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userNameElement = document.getElementById('userName');
     userNameElement.textContent = currentUser.username;
     
-    // Make username clickable only for non-guest users
-    if (currentUser.id !== 'guest') {
-        userNameElement.style.cursor = 'pointer';
-        userNameElement.onclick = () => {
-            window.location.href = 'person_view.html';
-        };
-    }
-    
-    // Show/hide login/logout buttons based on guest status
-    if (currentUser.id === 'guest') {
-        document.getElementById('logoutBtn').style.display = 'none';
-        document.getElementById('loginBtn').style.display = 'inline-block';
-    } else {
-        document.getElementById('logoutBtn').style.display = 'inline-block';
-        document.getElementById('loginBtn').style.display = 'none';
-    }
+    // Guest mode removed: username is always clickable.
+    userNameElement.style.cursor = 'pointer';
+    userNameElement.onclick = () => {
+        window.location.href = 'person_view.html';
+    };
     
     // Show admin panel button in header (already on admin panel, but keep for consistency)
     if (currentUser.access_level.toLowerCase() === 'admin') {

@@ -48,6 +48,7 @@ A beautiful, modern web application for managing product lots, items, and users 
 ### Prerequisites
 - Supabase account (free)
 - Cloudinary account (free)
+- Node.js 18+ (for the Next.js app in `web/`)
 
 ### Setup
 
@@ -57,16 +58,25 @@ git clone <your-repo-url>
 cd bh_smry_maker
 ```
 
-2. **Configure Supabase**
-   - Update `js/supabase-config.js` with your credentials
+2. **Next.js app (new frontend)**
+   - Install deps and run:
+```bash
+cd web
+npm install
+npm run dev
+```
+   - Create `web/.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `web/ENV_SAMPLE.txt`)
 
-3. **Configure Cloudinary**
+3. **Configure Supabase (legacy app)**
+   - Update `js/supabase-config.js` with your credentials (if you still run the legacy HTML pages)
+
+4. **Configure Cloudinary**
    - Update `js/lot_view.js` with your cloud name and upload preset
 
-4. **Setup Database**
+5. **Setup Database**
    - Run `database_setup.sql` in Supabase SQL Editor
 
-5. **Deploy**
+6. **Deploy**
    - See `READY_TO_DEPLOY.md` for deployment guide
 
 ---
@@ -75,14 +85,17 @@ cd bh_smry_maker
 
 ```
 bh_smry_maker/
-├── index.html              # Login page
-├── dashboard.html          # Main dashboard
-├── lot_view.html          # Lot management
-├── person_view.html       # User profile view
-├── admin_panel.html       # User management
-├── css/                   # Stylesheets
-├── js/                    # JavaScript logic
-└── database_setup.sql     # Database initialization
+├── web/                   # Next.js (React) + TypeScript + Tailwind (new frontend)
+│   └── src/app/           # App Router routes (/, /dashboard, /api/*, ...)
+├── index.html             # Legacy login (static HTML) - kept during migration
+├── dashboard.html         # Legacy dashboard
+├── lot_view.html          # Legacy lot view
+├── person_view.html       # Legacy person view
+├── admin_panel.html       # Legacy admin panel
+├── css/                   # Legacy stylesheets
+├── js/                    # Legacy JavaScript logic
+├── bidding/               # Legacy Node/Express bidding service (separate)
+└── sql/                   # SQL scripts (Supabase/Postgres)
 ```
 
 ---
@@ -102,13 +115,17 @@ bh_smry_maker/
 
 ## 🔧 Technology Stack
 
-- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
+- **Frontend**: Next.js (React) + TypeScript
+- **Styling**: Tailwind CSS
+- **Backend bits (inside Next.js)**: TypeScript API routes (`web/src/app/api/*`)
 - **Database**: Supabase (PostgreSQL)
 - **Storage**: Cloudinary (Images)
 - **Fonts**: Poppins (Google Fonts)
 - **Libraries**: 
   - Supabase JS Client
   - html2canvas (PNG generation)
+
+Note: The legacy static HTML/JS app still exists in the repo root while pages are migrated into `web/`.
 
 ---
 

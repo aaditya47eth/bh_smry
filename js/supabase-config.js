@@ -38,13 +38,20 @@ function clearSession() {
 
 // Helper function to check if user is authenticated
 function isAuthenticated() {
-    return getCurrentUser() !== null;
+    const user = getCurrentUser();
+    // Guest mode removed: treat any old guest session as logged out.
+    if (user && user.id === 'guest') {
+        clearSession();
+        return false;
+    }
+    return user !== null && user.id !== 'guest';
 }
 
 // Helper function to check user permission
 function hasPermission(permission) {
     const user = getCurrentUser();
     if (!user) return false;
+    if (user.id === 'guest') return false;
     
     const accessLevel = user.access_level.toLowerCase(); // Convert to lowercase for comparison
     
