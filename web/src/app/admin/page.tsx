@@ -82,6 +82,18 @@ type AuctionWatcherRow = {
   created_at: string;
 };
 
+type BidRow = {
+  id: number;
+  post_url: string;
+  user_name: string;
+  user_id: string;
+  bid_text: string;
+  price: number | null;
+  timestamp: string;
+  image_text?: string;
+  profile_pic?: string;
+};
+
 const ADMIN_SECTION_KEY = "adminPanelSelectedSection";
 
 function formatInr(amount: number): string {
@@ -153,6 +165,11 @@ export default function AdminPage() {
   const [auctionError, setAuctionError] = useState<string | null>(null);
   const [newAuctionUrl, setNewAuctionUrl] = useState("");
   const [addingAuction, setAddingAuction] = useState(false);
+
+  const [viewBidsWatcherId, setViewBidsWatcherId] = useState<string | null>(null);
+  const [bids, setBids] = useState<BidRow[]>([]);
+  const [bidsLoading, setBidsLoading] = useState(false);
+  const [bidsError, setBidsError] = useState<string | null>(null);
 
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -374,6 +391,24 @@ export default function AdminPage() {
       await loadAuctions();
     } catch (e: any) {
       alert(e?.message ?? "Failed to delete auction");
+    }
+  }
+
+  async function openBidsModal(watcherId: string | number) {
+    setViewBidsWatcherId(String(watcherId));
+    setBidsLoading(true);
+    setBidsError(null);
+    setBids([]);
+    try {
+      // Note: Make sure the API route exists at /api/admin/auctions/[id]/bids
+      const res = await fetch(`/api/admin/auctions/${encodeURIComponent(String(watcherId))}/bids`);
+      const json = (await res.json()) as ApiOk<{ bids: BidRow[] }> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      setBids(json.bids);
+    } catch (e: any) {
+      setBidsError(e?.message ?? "Failed to load bids");
+    } finally {
+      setBidsLoading(false);
     }
   }
 
@@ -609,7 +644,7 @@ export default function AdminPage() {
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{title}</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-neutral-100">{title}</h1>
         </div>
 
         {section === "users" ? (
@@ -624,7 +659,7 @@ export default function AdminPage() {
       </div>
 
       <div className="mt-4 flex flex-col gap-4 lg:flex-row">
-        <div className="inline-flex self-start rounded-xl border border-slate-200 bg-white p-1 shadow-sm lg:flex-col">
+        <div className="inline-flex self-start rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-1 shadow-sm lg:flex-col">
           {(
             [
               { key: "users", label: "Collector Management" },
@@ -646,7 +681,7 @@ export default function AdminPage() {
                   setSection(t.key);
                 }}
                 className={`rounded-lg px-4 py-2 text-sm font-medium text-left transition ${
-                  active ? "bg-slate-100 text-[#2c3e50]" : "text-slate-600 hover:bg-slate-50"
+                  active ? "bg-slate-100 text-[#2c3e50]" : "text-slate-600 dark:text-neutral-400 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                 }`}
               >
                 {t.label}
@@ -658,16 +693,16 @@ export default function AdminPage() {
         <div className="min-w-0 flex-1">
           {section === "users" ? (
             <>
-              <div className="mt-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mt-0 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <input
-                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                    className="w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                     placeholder="Search by username or number..."
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                   />
                   <button
-                    className="shrink-0 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    className="shrink-0 rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                     onClick={loadUsers}
                   >
                     Refresh
@@ -677,7 +712,7 @@ export default function AdminPage() {
 
               <div className="mt-4">
                 {loading ? (
-                  <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                  <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                     Loading users...
                   </div>
                 ) : error ? (
@@ -685,8 +720,8 @@ export default function AdminPage() {
                     {error}
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <div className="grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                  <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm">
+                    <div className="grid grid-cols-12 gap-2 border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 text-xs font-medium text-slate-600 dark:text-neutral-400">
                       <div className="col-span-4">Username</div>
                       <div className="col-span-3">Number</div>
                       <div className="col-span-2">Access</div>
@@ -701,7 +736,7 @@ export default function AdminPage() {
                           ? "bg-red-50 text-red-700 border-red-200"
                           : access === "manager"
                             ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-slate-50 text-slate-700 border-slate-200";
+                            : "bg-slate-50 dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-slate-200 dark:border-neutral-700";
 
                       return (
                         <div
@@ -709,7 +744,7 @@ export default function AdminPage() {
                           className="grid grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
                         >
                           <div className="col-span-4">
-                            <div className="font-medium text-slate-900">
+                            <div className="font-medium text-slate-900 dark:text-neutral-100">
                               {u.username || "—"}
                             </div>
                             {!hasPassword ? (
@@ -718,7 +753,7 @@ export default function AdminPage() {
                               </div>
                             ) : null}
                           </div>
-                          <div className="col-span-3 text-slate-700">{u.number || "—"}</div>
+                          <div className="col-span-3 text-slate-700 dark:text-neutral-300">{u.number || "—"}</div>
                           <div className="col-span-2">
                             <span
                               className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${badgeColor}`}
@@ -728,7 +763,7 @@ export default function AdminPage() {
                           </div>
                           <div className="col-span-3 flex justify-end gap-2">
                             <button
-                              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                              className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                               onClick={() => openEdit(u)}
                             >
                               Edit
@@ -750,7 +785,7 @@ export default function AdminPage() {
           ) : section === "stats" ? (
             <div className="mt-0">
               {statsLoading ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                   Loading stats...
                 </div>
               ) : statsError ? (
@@ -759,13 +794,13 @@ export default function AdminPage() {
                 </div>
               ) : stats ? (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+                  <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-2 shadow-sm">
                     <div className="flex gap-2">
                       <button
                         className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${
                           statsTab === "lot"
                             ? "bg-slate-900 text-white"
-                            : "bg-white text-slate-700 hover:bg-slate-50"
+                            : "bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                         }`}
                         onClick={() => setStatsTab("lot")}
                       >
@@ -775,7 +810,7 @@ export default function AdminPage() {
                         className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${
                           statsTab === "person"
                             ? "bg-slate-900 text-white"
-                            : "bg-white text-slate-700 hover:bg-slate-50"
+                            : "bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                         }`}
                         onClick={() => setStatsTab("person")}
                       >
@@ -784,10 +819,10 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="text-sm font-medium text-slate-700">Month</div>
+                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+                    <div className="text-sm font-medium text-slate-700 dark:text-neutral-300">Month</div>
                     <select
-                      className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                      className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                       value={statsMonth}
                       onChange={(e) => setStatsMonth(e.target.value)}
                     >
@@ -819,10 +854,10 @@ export default function AdminPage() {
                         ].map((c) => (
                           <div
                             key={c.label}
-                            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                            className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-5 shadow-sm"
                           >
-                            <div className="text-sm text-slate-600">{c.label}</div>
-                            <div className="mt-2 text-2xl font-semibold text-slate-900">
+                            <div className="text-sm text-slate-600 dark:text-neutral-400">{c.label}</div>
+                            <div className="mt-2 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                               {typeof c.value === "number"
                                 ? c.value.toLocaleString()
                                 : c.value}
@@ -831,10 +866,10 @@ export default function AdminPage() {
                         ))}
                       </div>
 
-                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                        <div className="grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm">
+                        <div className="grid grid-cols-12 gap-2 border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 text-xs font-medium text-slate-600 dark:text-neutral-400">
                           <button
-                            className="col-span-3 text-left hover:text-slate-900"
+                            className="col-span-3 text-left hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setLotSort((cur) =>
                                 cur?.key === "lotName"
@@ -846,7 +881,7 @@ export default function AdminPage() {
                             Lot Name {lotSort?.key === "lotName" ? (lotSort.dir === "asc" ? "↑" : "↓") : ""}
                           </button>
                           <button
-                            className="col-span-3 text-left hover:text-slate-900"
+                            className="col-span-3 text-left hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setLotSort((cur) =>
                                 cur?.key === "participants"
@@ -866,7 +901,7 @@ export default function AdminPage() {
                               : ""}
                           </button>
                           <button
-                            className="col-span-3 text-left hover:text-slate-900"
+                            className="col-span-3 text-left hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setLotSort((cur) =>
                                 cur?.key === "totalItems"
@@ -883,7 +918,7 @@ export default function AdminPage() {
                               : ""}
                           </button>
                           <button
-                            className="col-span-3 text-right hover:text-slate-900"
+                            className="col-span-3 text-right hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setLotSort((cur) =>
                                 cur?.key === "amount"
@@ -899,7 +934,7 @@ export default function AdminPage() {
                         {sortedLotRows.map((row) => (
                           <button
                             key={row.lotId}
-                            className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 last:border-b-0"
+                            className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 last:border-b-0"
                             onClick={() =>
                               router.push(
                                 `/lot?lot_id=${encodeURIComponent(
@@ -908,16 +943,16 @@ export default function AdminPage() {
                               )
                             }
                           >
-                            <div className="col-span-3 font-medium text-slate-900">
+                            <div className="col-span-3 font-medium text-slate-900 dark:text-neutral-100">
                               {row.lotName}
                             </div>
-                            <div className="col-span-3 text-slate-700">
+                            <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                               {row.participants.toLocaleString()}
                             </div>
-                            <div className="col-span-3 text-slate-700">
+                            <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                               {row.totalItems.toLocaleString()}
                             </div>
-                            <div className="col-span-3 text-right font-medium text-slate-900">
+                            <div className="col-span-3 text-right font-medium text-slate-900 dark:text-neutral-100">
                               ₹{formatInr(row.amount)}
                             </div>
                           </button>
@@ -940,10 +975,10 @@ export default function AdminPage() {
                         ].map((c) => (
                           <div
                             key={c.label}
-                            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                            className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-5 shadow-sm"
                           >
-                            <div className="text-sm text-slate-600">{c.label}</div>
-                            <div className="mt-2 text-2xl font-semibold text-slate-900">
+                            <div className="text-sm text-slate-600 dark:text-neutral-400">{c.label}</div>
+                            <div className="mt-2 text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                               {typeof c.value === "number"
                                 ? c.value.toLocaleString()
                                 : c.value}
@@ -952,10 +987,10 @@ export default function AdminPage() {
                         ))}
                       </div>
 
-                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                        <div className="grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm">
+                        <div className="grid grid-cols-12 gap-2 border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 text-xs font-medium text-slate-600 dark:text-neutral-400">
                           <button
-                            className="col-span-3 text-left hover:text-slate-900"
+                            className="col-span-3 text-left hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setPersonSort((cur) =>
                                 cur?.key === "username"
@@ -972,7 +1007,7 @@ export default function AdminPage() {
                               : ""}
                           </button>
                           <button
-                            className="col-span-3 text-left hover:text-slate-900"
+                            className="col-span-3 text-left hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setPersonSort((cur) =>
                                 cur?.key === "lotsParticipated"
@@ -992,7 +1027,7 @@ export default function AdminPage() {
                               : ""}
                           </button>
                           <button
-                            className="col-span-3 text-left hover:text-slate-900"
+                            className="col-span-3 text-left hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setPersonSort((cur) =>
                                 cur?.key === "figsCollected"
@@ -1012,7 +1047,7 @@ export default function AdminPage() {
                               : ""}
                           </button>
                           <button
-                            className="col-span-3 text-right hover:text-slate-900"
+                            className="col-span-3 text-right hover:text-slate-900 dark:text-neutral-100"
                             onClick={() =>
                               setPersonSort((cur) =>
                                 cur?.key === "amount"
@@ -1032,23 +1067,23 @@ export default function AdminPage() {
                         {sortedPersonRows.map((row) => (
                           <button
                             key={row.username}
-                            className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-sm text-left hover:bg-slate-50 last:border-b-0"
+                            className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-sm text-left hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 last:border-b-0"
                             onClick={() =>
                               router.push(
                                 `/person?username=${encodeURIComponent(row.username)}`
                               )
                             }
                           >
-                            <div className="col-span-3 font-medium text-slate-900">
+                            <div className="col-span-3 font-medium text-slate-900 dark:text-neutral-100">
                               {row.username}
                             </div>
-                            <div className="col-span-3 text-slate-700">
+                            <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                               {row.lotsParticipated.toLocaleString()}
                             </div>
-                            <div className="col-span-3 text-slate-700">
+                            <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                               {row.figsCollected.toLocaleString()}
                             </div>
-                            <div className="col-span-3 text-right font-medium text-slate-900">
+                            <div className="col-span-3 text-right font-medium text-slate-900 dark:text-neutral-100">
                               ₹{formatInr(row.amount)}
                             </div>
                           </button>
@@ -1058,7 +1093,7 @@ export default function AdminPage() {
                   )}
                 </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                   No stats yet.
                 </div>
               )}
@@ -1066,7 +1101,7 @@ export default function AdminPage() {
           ) : section === "checklist" ? (
             <div className="mt-0 space-y-4">
               {checklistLoading ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                   Loading checklist...
                 </div>
               ) : checklistError ? (
@@ -1076,7 +1111,7 @@ export default function AdminPage() {
               ) : (
                 <>
                   {checklistMode === "summary" ? (
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm">
                       <div className="divide-y divide-slate-200">
                         <div>
                           <button
@@ -1087,7 +1122,7 @@ export default function AdminPage() {
                               <span className="text-[#2c3e50]">
                                 {checklistPartialOpen ? "▼" : "▶"}
                               </span>
-                              <span className="text-lg font-semibold text-slate-900">
+                              <span className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
                                 Partial
                               </span>
                               <span className="text-slate-500">
@@ -1098,8 +1133,8 @@ export default function AdminPage() {
 
                           {checklistPartialOpen ? (
                             <div className="px-5 pb-5">
-                              <div className="overflow-hidden rounded-xl border border-slate-200">
-                                <div className="grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700">
+                                <div className="grid grid-cols-12 gap-2 border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 text-xs font-medium text-slate-600 dark:text-neutral-400">
                                   <div className="col-span-6">LOT NAME</div>
                                   <div className="col-span-3">TOTAL ITEMS</div>
                                   <div className="col-span-3">STATUS</div>
@@ -1107,17 +1142,17 @@ export default function AdminPage() {
                                 {checklistPartialLots.map((l) => (
                                   <button
                                     key={l.lotId}
-                                    className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 last:border-b-0"
+                                    className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 last:border-b-0"
                                     onClick={async () => {
                                       setSelectedLotId(l.lotId);
                                       setSelectedLotName(l.lotName);
                                       await loadChecklistItemsForLot(l.lotId);
                                     }}
                                   >
-                                    <div className="col-span-6 font-medium text-slate-900">
+                                    <div className="col-span-6 font-medium text-slate-900 dark:text-neutral-100">
                                       {l.lotName}
                                     </div>
-                                    <div className="col-span-3 text-slate-700">
+                                    <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                                       {l.totalItems.toLocaleString()}
                                     </div>
                                     <div className="col-span-3">
@@ -1141,7 +1176,7 @@ export default function AdminPage() {
                               <span className="text-[#2c3e50]">
                                 {checklistIncompleteOpen ? "▼" : "▶"}
                               </span>
-                              <span className="text-lg font-semibold text-slate-900">
+                              <span className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
                                 Incomplete
                               </span>
                               <span className="text-slate-500">
@@ -1152,8 +1187,8 @@ export default function AdminPage() {
 
                           {checklistIncompleteOpen ? (
                             <div className="px-5 pb-5">
-                              <div className="overflow-hidden rounded-xl border border-slate-200">
-                                <div className="grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700">
+                                <div className="grid grid-cols-12 gap-2 border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 text-xs font-medium text-slate-600 dark:text-neutral-400">
                                   <div className="col-span-6">LOT NAME</div>
                                   <div className="col-span-3">TOTAL ITEMS</div>
                                   <div className="col-span-3">STATUS</div>
@@ -1161,17 +1196,17 @@ export default function AdminPage() {
                                 {checklistIncompleteLots.map((l) => (
                                   <button
                                     key={l.lotId}
-                                    className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 last:border-b-0"
+                                    className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 last:border-b-0"
                                     onClick={async () => {
                                       setSelectedLotId(l.lotId);
                                       setSelectedLotName(l.lotName);
                                       await loadChecklistItemsForLot(l.lotId);
                                     }}
                                   >
-                                    <div className="col-span-6 font-medium text-slate-900">
+                                    <div className="col-span-6 font-medium text-slate-900 dark:text-neutral-100">
                                       {l.lotName}
                                     </div>
-                                    <div className="col-span-3 text-slate-700">
+                                    <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                                       {l.totalItems.toLocaleString()}
                                     </div>
                                     <div className="col-span-3">
@@ -1195,7 +1230,7 @@ export default function AdminPage() {
                               <span className="text-[#2c3e50]">
                                 {checklistCompletedOpen ? "▼" : "▶"}
                               </span>
-                              <span className="text-lg font-semibold text-slate-900">
+                              <span className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
                                 Completed
                               </span>
                               <span className="text-slate-500">
@@ -1206,8 +1241,8 @@ export default function AdminPage() {
 
                           {checklistCompletedOpen ? (
                             <div className="px-5 pb-5">
-                              <div className="overflow-hidden rounded-xl border border-slate-200">
-                                <div className="grid grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-600">
+                              <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700">
+                                <div className="grid grid-cols-12 gap-2 border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 text-xs font-medium text-slate-600 dark:text-neutral-400">
                                   <div className="col-span-6">LOT NAME</div>
                                   <div className="col-span-3">TOTAL ITEMS</div>
                                   <div className="col-span-3">STATUS</div>
@@ -1215,21 +1250,21 @@ export default function AdminPage() {
                                 {checklistCompletedLots.map((l) => (
                                   <button
                                     key={l.lotId}
-                                    className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 last:border-b-0"
+                                    className="grid w-full grid-cols-12 gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 last:border-b-0"
                                     onClick={async () => {
                                       setSelectedLotId(l.lotId);
                                       setSelectedLotName(l.lotName);
                                       await loadChecklistItemsForLot(l.lotId);
                                     }}
                                   >
-                                    <div className="col-span-6 font-medium text-slate-900">
+                                    <div className="col-span-6 font-medium text-slate-900 dark:text-neutral-100">
                                       {l.lotName}
                                     </div>
-                                    <div className="col-span-3 text-slate-700">
+                                    <div className="col-span-3 text-slate-700 dark:text-neutral-300">
                                       {l.totalItems.toLocaleString()}
                                     </div>
                                     <div className="col-span-3">
-                                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-[#2c3e50]">
+                                      <span className="inline-flex rounded-full border border-slate-200 dark:border-neutral-700 bg-slate-100 px-3 py-1 text-xs font-semibold text-[#2c3e50]">
                                         COMPLETE ({l.totalItems}/{l.totalItems})
                                       </span>
                                     </div>
@@ -1244,13 +1279,13 @@ export default function AdminPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="text-2xl font-semibold text-slate-900">
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+                        <div className="text-2xl font-semibold text-slate-900 dark:text-neutral-100">
                           {selectedLotName ? `${selectedLotName} Checklist` : "Checklist"}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                            className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                             onClick={() => {
                               setSelectedLotId("");
                               setSelectedLotName("");
@@ -1260,14 +1295,14 @@ export default function AdminPage() {
                             Back
                           </button>
                           <button
-                            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={() => void bulkChecklist("checked")}
                             disabled={checklistLoading || checklistItems.length === 0}
                           >
                             Check all
                           </button>
                           <button
-                            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={() => void bulkChecklist("unchecked")}
                             disabled={checklistLoading || checklistItems.length === 0}
                           >
@@ -1277,7 +1312,7 @@ export default function AdminPage() {
                       </div>
 
                       {checklistItems.length === 0 ? (
-                        <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                        <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                           No items in this lot.
                         </div>
                       ) : (
@@ -1292,17 +1327,17 @@ export default function AdminPage() {
                               ? "border-emerald-400"
                               : isRejected
                                 ? "border-rose-400"
-                                : "border-slate-200";
+                                : "border-slate-200 dark:border-neutral-700";
                             const tint = isChecked
                               ? "bg-emerald-50"
                               : isRejected
                                 ? "bg-rose-50"
-                                : "bg-white";
+                                : "bg-white dark:bg-neutral-800";
                             const tintHover = isChecked
                               ? "hover:bg-emerald-50/80"
                               : isRejected
                                 ? "hover:bg-rose-50/80"
-                                : "hover:bg-slate-50";
+                                : "hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900";
 
                             return (
                               <button
@@ -1315,7 +1350,7 @@ export default function AdminPage() {
                               >
                                 <div
                                   className={`relative h-[84px] w-[98px] ${
-                                    isChecked ? "bg-emerald-50/60" : isRejected ? "bg-rose-50/60" : "bg-slate-50"
+                                    isChecked ? "bg-emerald-50/60" : isRejected ? "bg-rose-50/60" : "bg-slate-50 dark:bg-neutral-900"
                                   }`}
                                 >
                                   {it.picture_url ? (
@@ -1360,17 +1395,17 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="mt-0 space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Add New Auction</div>
+                    <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Add New Auction</div>
                     <div className="mt-0.5 text-xs text-slate-500">
                       Paste Facebook Post URL to start tracking bids.
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
-                      className="w-[300px] rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                      className="w-[300px] rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                       placeholder="https://facebook.com/..."
                       value={newAuctionUrl}
                       onChange={(e) => setNewAuctionUrl(e.target.value)}
@@ -1387,7 +1422,7 @@ export default function AdminPage() {
               </div>
 
               {auctionLoading ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                   Loading auctions...
                 </div>
               ) : auctionError ? (
@@ -1395,16 +1430,16 @@ export default function AdminPage() {
                   {auctionError}
                 </div>
               ) : auctionWatchers.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
                   No active auctions. Add a URL above to start.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
                   {auctionWatchers.map((w) => (
-                    <div key={w.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div key={w.id} className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-slate-900" title={w.post_url}>
+                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-neutral-100" title={w.post_url}>
                             {w.post_url}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
@@ -1412,6 +1447,12 @@ export default function AdminPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <button
+                            className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
+                            onClick={() => openBidsModal(w.id)}
+                          >
+                            View Bids
+                          </button>
                           <button
                             className={`rounded-md px-3 py-1.5 text-xs font-medium border ${w.is_running ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
                             onClick={() => toggleAuction(w.id, !!w.is_running)}
@@ -1444,48 +1485,48 @@ export default function AdminPage() {
           }}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+            className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold text-slate-900">
+            <div className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
               {showAdd ? "Add User" : "Edit User"}
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3">
               <label className="block">
-                <span className="text-sm text-slate-700">Username</span>
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Username</span>
                 <input
-                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                   value={form.username}
                   onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
                 />
               </label>
 
               <label className="block">
-                <span className="text-sm text-slate-700">Number</span>
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Number</span>
                 <input
-                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                   value={form.number}
                   onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))}
                 />
               </label>
 
               <label className="block">
-                <span className="text-sm text-slate-700">
+                <span className="text-sm text-slate-700 dark:text-neutral-300">
                   Password {showEdit ? "(leave blank to keep)" : "(optional)"}
                 </span>
                 <input
                   type="password"
-                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 />
               </label>
 
               <label className="block">
-                <span className="text-sm text-slate-700">Access Level</span>
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Access Level</span>
                 <select
-                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                   value={form.access_level}
                   onChange={(e) => setForm((f) => ({ ...f, access_level: e.target.value }))}
                 >
@@ -1498,7 +1539,7 @@ export default function AdminPage() {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                 onClick={() => {
                   setShowAdd(false);
                   setShowEdit(false);
@@ -1518,6 +1559,93 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {viewBidsWatcherId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setViewBidsWatcherId(null)}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-neutral-700 px-5 py-4">
+              <div className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Bids Found</div>
+              <button
+                className="rounded-md p-1 hover:bg-slate-100 dark:hover:bg-neutral-700"
+                onClick={() => setViewBidsWatcherId(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-5">
+              {bidsLoading ? (
+                <div className="py-10 text-center text-slate-500 dark:text-neutral-400">Loading bids...</div>
+              ) : bidsError ? (
+                <div className="rounded-md bg-red-50 p-4 text-red-700 dark:bg-red-900 dark:text-red-300">{bidsError}</div>
+              ) : bids.length === 0 ? (
+                <div className="py-10 text-center text-slate-500 dark:text-neutral-400">
+                  No bids found yet for this post.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bids.map((bid) => (
+                    <div
+                      key={bid.id}
+                      className="flex items-start gap-4 rounded-lg border border-slate-100 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 p-4"
+                    >
+                      {bid.profile_pic ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={bid.profile_pic}
+                          alt=""
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 dark:bg-neutral-700 text-slate-500 dark:text-neutral-400 font-bold">
+                          {bid.user_name?.charAt(0) ?? "?"}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium text-slate-900 dark:text-neutral-100">
+                            {bid.user_name}
+                            <span className="ml-2 text-xs font-normal text-slate-500 dark:text-neutral-400">
+                              {new Date(bid.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          {bid.price ? (
+                            <div className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
+                              ₹{bid.price}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700 dark:text-neutral-300 whitespace-pre-wrap">{bid.bid_text}</div>
+                        {bid.image_text ? (
+                          <div className="mt-2 text-xs text-slate-500 dark:text-neutral-400">
+                            <span className="font-semibold">OCR Text:</span> {bid.image_text}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-neutral-700 px-5 py-3 text-right">
+              <button
+                className="rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-600"
+                onClick={() => setViewBidsWatcherId(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </AppShell>
   );
 }

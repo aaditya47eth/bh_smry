@@ -403,34 +403,34 @@ export default function ProfilePage() {
     <AppShell>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">My Profile</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">My Profile</h1>
         </div>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-600">Total Figures</div>
-          <div className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+          <div className="text-xs text-slate-600 dark:text-neutral-400">Total Figures</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-neutral-100">
             {totals.figs.toLocaleString("en-IN")}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-600">Total Amount</div>
-          <div className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+          <div className="text-xs text-slate-600 dark:text-neutral-400">Total Amount</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-neutral-100">
             ₹{Math.round(totals.amount).toLocaleString("en-IN")}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-600">Lots</div>
-          <div className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+          <div className="text-xs text-slate-600 dark:text-neutral-400">Lots</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-neutral-100">
             {groupedByLot.length.toLocaleString("en-IN")}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-3 shadow-sm">
           <div className="flex h-full flex-col justify-center gap-2">
             <button
               className={`w-full rounded-md px-3 py-2 text-left text-xs font-semibold transition ${
-                mode === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+                mode === "all" ? "bg-slate-900 text-white" : "bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
               }`}
               onClick={() => setMode("all")}
             >
@@ -440,7 +440,7 @@ export default function ProfilePage() {
               className={`w-full rounded-md px-3 py-2 text-left text-xs font-semibold transition ${
                 mode === "collections"
                   ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-700 hover:bg-slate-50"
+                  : "bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
               }`}
               onClick={() => setMode("collections")}
             >
@@ -452,7 +452,7 @@ export default function ProfilePage() {
 
       <div className="mt-5">
         {loading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
             Loading your items...
           </div>
         ) : error ? (
@@ -460,7 +460,7 @@ export default function ProfilePage() {
             {error}
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
             No items booked under your name.
           </div>
         ) : (
@@ -476,11 +476,11 @@ export default function ProfilePage() {
                 return (
                   <section
                     key={lot.lotId}
-                    className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                    className="overflow-hidden rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm"
                   >
                     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                       <button
-                        className="truncate text-left text-sm font-semibold text-slate-900 hover:underline"
+                        className="truncate text-left text-sm font-semibold text-slate-900 dark:text-neutral-100 hover:underline"
                         onClick={() =>
                           router.push(
                             `/lot?lot_id=${encodeURIComponent(
@@ -493,7 +493,7 @@ export default function ProfilePage() {
                         {lot.lotName}
                       </button>
 
-                      <div className="shrink-0 text-sm font-semibold text-slate-900">
+                      <div className="shrink-0 text-sm font-semibold text-slate-900 dark:text-neutral-100">
                         ₹{Math.round(amount).toLocaleString("en-IN")}
                       </div>
                     </div>
@@ -504,10 +504,10 @@ export default function ProfilePage() {
                       <div className="flex flex-wrap items-start gap-x-1 gap-y-1">
                         {shown.map((it) => (
                           <div key={String(it.id)} className="w-[72px]">
-                            <div className="mb-1 text-center text-xs font-semibold text-slate-900">
+                            <div className="mb-1 text-center text-xs font-semibold text-slate-900 dark:text-neutral-100">
                               {Math.round(toNumber(it.price)).toLocaleString("en-IN")}
                             </div>
-                            <div className="group relative w-[72px] overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                            <div className="group relative w-[72px] overflow-hidden rounded-md border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900">
                               <div className="h-[72px] w-[72px]">
                                 {it.picture_url ? (
                                   // eslint-disable-next-line @next/next/no-img-element
@@ -526,7 +526,7 @@ export default function ProfilePage() {
                               {it.picture_url ? (
                                 <button
                                   type="button"
-                                  className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/90 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                                  className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-800/90 opacity-0 shadow-sm transition-opacity hover:bg-white dark:bg-neutral-800 group-hover:opacity-100"
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -551,7 +551,7 @@ export default function ProfilePage() {
                       <div className="mt-3 flex items-center justify-end gap-3">
                         {remaining > 0 || isExpanded ? (
                           <button
-                            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                            className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                             onClick={() =>
                               setExpandedLots((prev) => ({
                                 ...prev,
@@ -570,17 +570,17 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Collections</div>
-                    <div className="mt-0.5 text-xs text-slate-500">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Collections</div>
+                    <div className="mt-0.5 text-xs text-slate-500 dark:text-neutral-400">
                       Create collections and add items (an item can be in multiple collections).
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
-                      className="w-[210px] rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                      className="w-[210px] rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                       placeholder="New collection name"
                       value={newCollectionName}
                       onChange={(e) => setNewCollectionName(e.target.value)}
@@ -596,17 +596,17 @@ export default function ProfilePage() {
                 </div>
 
                 {collectionsLoading ? (
-                  <div className="mt-3 text-xs text-slate-500">Loading collections...</div>
+                  <div className="mt-3 text-xs text-slate-500 dark:text-neutral-400">Loading collections...</div>
                 ) : collectionsError ? (
                   <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
                     {collectionsError}
                   </div>
                 ) : collections.length === 0 ? (
-                  <div className="mt-3 text-xs text-slate-500">No collections yet.</div>
+                  <div className="mt-3 text-xs text-slate-500 dark:text-neutral-400">No collections yet.</div>
                 ) : (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <select
-                      className="min-w-[240px] rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                      className="min-w-[240px] rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
                       value={selectedCollectionId}
                       onChange={(e) => {
                         const id = e.target.value;
@@ -631,24 +631,24 @@ export default function ProfilePage() {
               </div>
 
               {selectedCollectionId ? (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">
                       {selectedCollectionName}
                     </div>
                     {selectedCollectionId !== ALL_COLLECTIONS_ID ? (
                       <div className="relative collection-menu">
                         <button
-                          className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1.5 text-sm font-semibold text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                           onClick={() => setCollectionMenuOpen((v) => !v)}
                           title="Collection actions"
                         >
                           ⋮
                         </button>
                         {collectionMenuOpen ? (
-                          <div className="absolute right-0 top-9 z-20 min-w-[180px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+                          <div className="absolute right-0 top-9 z-20 min-w-[180px] overflow-hidden rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg">
                             <button
-                              className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                               onClick={() => {
                                 setCollectionMenuOpen(false);
                                 openEditCollectionItems();
@@ -657,7 +657,7 @@ export default function ProfilePage() {
                               Edit Items
                             </button>
                             <button
-                              className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                               onClick={() => {
                                 setCollectionMenuOpen(false);
                                 void renameCollection(selectedCollectionId, selectedCollectionName);
@@ -666,7 +666,7 @@ export default function ProfilePage() {
                               Edit Collection Name
                             </button>
                             <button
-                              className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              className="block w-full px-3 py-2 text-left text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                               onClick={() => {
                                 setCollectionMenuOpen(false);
                                 void takeCollectionPicture();
@@ -688,7 +688,7 @@ export default function ProfilePage() {
                       </div>
                     ) : (
                       <button
-                        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                         onClick={() => {
                           setSelectedCollectionId("");
                           setSelectedCollectionName("");
@@ -705,26 +705,26 @@ export default function ProfilePage() {
                   <div id={collectionCaptureId}>
                   {selectedCollectionId === ALL_COLLECTIONS_ID ? (
                     allCollectionsLoading ? (
-                      <div className="mt-3 text-xs text-slate-500">Loading all collections...</div>
+                      <div className="mt-3 text-xs text-slate-500 dark:text-neutral-400">Loading all collections...</div>
                     ) : allCollectionsItems.length === 0 ? (
-                      <div className="mt-3 text-xs text-slate-500">No collections found.</div>
+                      <div className="mt-3 text-xs text-slate-500 dark:text-neutral-400">No collections found.</div>
                     ) : (
                       <div className="mt-3 space-y-4">
                         {allCollectionsItems.map((c) => (
                           <section key={c.id}>
-                            <div className="mb-2 text-xs font-semibold text-slate-700">{c.name}</div>
+                            <div className="mb-2 text-xs font-semibold text-slate-700 dark:text-neutral-300">{c.name}</div>
                             {c.items.length === 0 ? (
-                              <div className="text-[11px] text-slate-500">No items in this collection.</div>
+                              <div className="text-[11px] text-slate-500 dark:text-neutral-400">No items in this collection.</div>
                             ) : (
                               <div className="grid grid-cols-4 gap-x-1 gap-y-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
                                 {c.items.map((it) => (
                                   <div key={`${c.id}-${String(it.id)}`} className="min-w-0">
-                                    <div className="mb-1 text-center text-[11px] font-semibold text-slate-900">
+                                    <div className="mb-1 text-center text-[11px] font-semibold text-slate-900 dark:text-neutral-100">
                                       {Math.round(toNumber(it.price)).toLocaleString("en-IN")}
                                     </div>
                                     <div className="group relative">
                                       <button
-                                        className="w-full overflow-hidden rounded-sm border border-slate-200 bg-slate-50 hover:bg-slate-100"
+                                        className="w-full overflow-hidden rounded-sm border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 hover:bg-slate-100"
                                         onClick={() =>
                                           router.push(
                                             `/lot?lot_id=${encodeURIComponent(
@@ -756,7 +756,7 @@ export default function ProfilePage() {
                                       {it.picture_url ? (
                                         <button
                                           type="button"
-                                          className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/90 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                                          className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-800/90 opacity-0 shadow-sm transition-opacity hover:bg-white dark:bg-neutral-800 group-hover:opacity-100"
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
@@ -783,21 +783,21 @@ export default function ProfilePage() {
                       </div>
                     )
                   ) : collectionLoading ? (
-                    <div className="mt-3 text-xs text-slate-500">Loading collection...</div>
+                    <div className="mt-3 text-xs text-slate-500 dark:text-neutral-400">Loading collection...</div>
                   ) : collectionItems.length === 0 ? (
-                    <div className="mt-3 text-xs text-slate-500">
+                    <div className="mt-3 text-xs text-slate-500 dark:text-neutral-400">
                       No items in this collection yet.
                     </div>
                   ) : (
                     <div className="mt-3 grid grid-cols-4 gap-x-1 gap-y-2 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12">
                       {collectionItems.map((it) => (
                         <div key={String(it.id)} className="min-w-0">
-                          <div className="mb-1 text-center text-[11px] font-semibold text-slate-900">
+                          <div className="mb-1 text-center text-[11px] font-semibold text-slate-900 dark:text-neutral-100">
                             {Math.round(toNumber(it.price)).toLocaleString("en-IN")}
                           </div>
                           <div className="group relative">
                             <button
-                              className="w-full overflow-hidden rounded-sm border border-slate-200 bg-slate-50 hover:bg-slate-100"
+                              className="w-full overflow-hidden rounded-sm border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 hover:bg-slate-100"
                               onClick={() =>
                                 router.push(
                                   `/lot?lot_id=${encodeURIComponent(
@@ -829,7 +829,7 @@ export default function ProfilePage() {
                             {it.picture_url ? (
                               <button
                                 type="button"
-                                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/90 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-800/90 opacity-0 shadow-sm transition-opacity hover:bg-white dark:bg-neutral-800 group-hover:opacity-100"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -862,13 +862,13 @@ export default function ProfilePage() {
       {/* Add/Remove items modal */}
       {editCollectionOpen ? (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white shadow-xl">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-              <div className="text-sm font-semibold text-slate-900">
+          <div className="w-full max-w-3xl rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-neutral-700 px-4 py-3">
+              <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">
                 Edit Collection: {selectedCollectionName}
               </div>
               <button
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                 onClick={closeEditCollectionItems}
               >
                 Close
@@ -884,7 +884,7 @@ export default function ProfilePage() {
                     <label
                       key={id}
                       className={`cursor-pointer overflow-hidden rounded-sm border ${
-                        checked ? "border-slate-900 bg-slate-50" : "border-slate-200 bg-white"
+                        checked ? "border-slate-900 bg-slate-50 dark:bg-neutral-900" : "border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800"
                       }`}
                     >
                       <input
@@ -898,7 +898,7 @@ export default function ProfilePage() {
                           }))
                         }
                       />
-                      <div className="aspect-square w-full bg-slate-50">
+                      <div className="aspect-square w-full bg-slate-50 dark:bg-neutral-900">
                         {it.picture_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -913,7 +913,7 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
-                      <div className="px-1.5 py-1 text-center text-[11px] font-semibold text-slate-900">
+                      <div className="px-1.5 py-1 text-center text-[11px] font-semibold text-slate-900 dark:text-neutral-100">
                         {Math.round(toNumber(it.price)).toLocaleString("en-IN")}
                       </div>
                     </label>
@@ -922,9 +922,9 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 dark:border-neutral-700 px-4 py-3">
               <button
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                 onClick={closeEditCollectionItems}
                 disabled={savingCollectionItems}
               >
@@ -951,7 +951,7 @@ export default function ProfilePage() {
           <img
             src={zoomImageUrl}
             alt="Zoomed"
-            className="max-h-[92vh] max-w-[95vw] rounded-md border border-white/20 bg-white object-contain shadow-2xl"
+            className="max-h-[92vh] max-w-[95vw] rounded-md border border-white/20 bg-white dark:bg-neutral-800 object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
