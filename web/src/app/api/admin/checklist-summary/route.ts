@@ -13,7 +13,6 @@ type ItemRow = {
   checked: boolean | null;
   checklist_status: string | null;
   cancelled?: boolean | null;
-  lots?: { lot_name?: string | null } | null;
 };
 
 type LotSummary = {
@@ -42,7 +41,7 @@ async function fetchAllChecklistRows(supabase: ReturnType<typeof getSupabaseServ
   while (true) {
     let query = supabase
       .from("items")
-      .select("id, lot_id, checked, checklist_status, cancelled, lots(lot_name)")
+      .select("id, lot_id, checked, checklist_status, cancelled")
       .order("id", { ascending: true })
       .limit(PAGE_SIZE);
 
@@ -119,8 +118,7 @@ export async function GET(request: Request) {
       const lotId = row.lot_id == null ? null : String(row.lot_id);
       if (!lotId) continue;
 
-      const lotName =
-        (row.lots?.lot_name ?? map.get(lotId)?.lotName ?? `Lot ${lotId}`).toString();
+      const lotName = (map.get(lotId)?.lotName ?? `Lot ${lotId}`).toString();
       const agg =
         map.get(lotId) ??
         ({

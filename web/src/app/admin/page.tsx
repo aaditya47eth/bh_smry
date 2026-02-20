@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { getCurrentUser, isAuthenticated } from "@/lib/session";
 
-type AdminSection = "users" | "stats" | "checklist";
+type AdminSection = "users" | "stats" | "checklist" | "auction";
 
 type UserRow = {
   id: number | string;
@@ -71,6 +71,15 @@ type ChecklistLotSummary = {
   totalItems: number;
   checkedItems: number;
   pendingItems: number;
+};
+
+type AuctionWatcherRow = {
+  id: number | string;
+  post_url: string;
+  my_name: string;
+  is_running: boolean;
+  created_by: string;
+  created_at: string;
 };
 
 const ADMIN_SECTION_KEY = "adminPanelSelectedSection";
@@ -139,6 +148,12 @@ export default function AdminPage() {
   >([]);
   const [checklistCompletedLots, setChecklistCompletedLots] = useState<ChecklistLotSummary[]>([]);
 
+  const [auctionWatchers, setAuctionWatchers] = useState<AuctionWatcherRow[]>([]);
+  const [auctionLoading, setAuctionLoading] = useState(false);
+  const [auctionError, setAuctionError] = useState<string | null>(null);
+  const [newAuctionUrl, setNewAuctionUrl] = useState("");
+  const [addingAuction, setAddingAuction] = useState(false);
+
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -169,9 +184,9 @@ export default function AdminPage() {
     const savedSection = (window.localStorage.getItem(ADMIN_SECTION_KEY) ||
       "") as AdminSection;
     const initial: AdminSection =
-      paramSection && ["users", "stats", "checklist"].includes(paramSection)
+      paramSection && ["users", "stats", "checklist", "auction"].includes(paramSection)
         ? paramSection
-        : savedSection && ["users", "stats", "checklist"].includes(savedSection)
+        : savedSection && ["users", "stats", "checklist", "auction"].includes(savedSection)
           ? savedSection
           : "users";
     setSection(initial);
@@ -298,6 +313,70 @@ export default function AdminPage() {
     }
   }
 
+  async function loadAuctions() {
+    setAuctionLoading(true);
+    setAuctionError(null);
+    try {
+      const res = await fetch("/api/admin/auctions", { cache: "no-store" });
+      const json = (await res.json()) as ApiOk<{ watchers: AuctionWatcherRow[] }> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      setAuctionWatchers(json.watchers);
+    } catch (e: any) {
+      setAuctionError(e?.message ?? "Failed to load auctions");
+    } finally {
+      setAuctionLoading(false);
+    }
+  }
+
+  async function addAuction() {
+    if (!newAuctionUrl.trim()) return;
+    setAddingAuction(true);
+    try {
+      const res = await fetch("/api/admin/auctions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ postUrl: newAuctionUrl.trim(), intervalSec: 60 })
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      setNewAuctionUrl("");
+      await loadAuctions();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to add auction");
+    } finally {
+      setAddingAuction(false);
+    }
+  }
+
+  async function toggleAuction(id: string | number, currentStatus: boolean) {
+    try {
+      const res = await fetch("/api/admin/auctions", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, is_running: !currentStatus })
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      await loadAuctions();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to toggle auction");
+    }
+  }
+
+  async function deleteAuction(id: string | number) {
+    if (!confirm("Delete this auction watcher?")) return;
+    try {
+      const res = await fetch(`/api/admin/auctions?id=${id}`, {
+        method: "DELETE"
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      await loadAuctions();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to delete auction");
+    }
+  }
+
   useEffect(() => {
     if (section === "stats") {
       if (statsMonthOptions.length <= 1) void loadStatsMonths();
@@ -309,6 +388,9 @@ export default function AdminPage() {
       setChecklistItems([]);
       void loadChecklistSummary();
       if (lots.length === 0) void loadLotsForChecklist();
+    }
+    if (section === "auction") {
+      void loadAuctions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
@@ -333,7 +415,7 @@ export default function AdminPage() {
     });
   }, [q, users]);
 
-  const title = section === "users" ? "Collector Management" : section === "stats" ? "Statistics" : "Checklist";
+  const title = section === "users" ? "Collector Management" : section === "stats" ? "Statistics" : section === "checklist" ? "Checklist" : "Auction Scraper";
 
   const sortedLotRows = useMemo(() => {
     const rows = stats?.lotWise.rows ?? [];
@@ -547,7 +629,8 @@ export default function AdminPage() {
             [
               { key: "users", label: "Collector Management" },
               { key: "stats", label: "Statistics" },
-              { key: "checklist", label: "Checklist" }
+              { key: "checklist", label: "Checklist" },
+              { key: "auction", label: "Auction" }
             ] as const
           ).map((t) => {
             const active = section === t.key;
@@ -980,7 +1063,7 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
-          ) : (
+          ) : section === "checklist" ? (
             <div className="mt-0 space-y-4">
               {checklistLoading ? (
                 <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
@@ -1273,6 +1356,79 @@ export default function AdminPage() {
                     </>
                   )}
                 </>
+              )}
+            </div>
+          ) : (
+            <div className="mt-0 space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Add New Auction</div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      Paste Facebook Post URL to start tracking bids.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="w-[300px] rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                      placeholder="https://facebook.com/..."
+                      value={newAuctionUrl}
+                      onChange={(e) => setNewAuctionUrl(e.target.value)}
+                    />
+                    <button
+                      className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={addAuction}
+                      disabled={addingAuction || !newAuctionUrl.trim()}
+                    >
+                      {addingAuction ? "Adding..." : "Start Tracking"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {auctionLoading ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                  Loading auctions...
+                </div>
+              ) : auctionError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
+                  {auctionError}
+                </div>
+              ) : auctionWatchers.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+                  No active auctions. Add a URL above to start.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {auctionWatchers.map((w) => (
+                    <div key={w.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-slate-900" title={w.post_url}>
+                            {w.post_url}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Status: <span className={w.is_running ? "text-emerald-600 font-medium" : "text-slate-500"}>{w.is_running ? "Running" : "Stopped"}</span> • Created by: {w.created_by}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className={`rounded-md px-3 py-1.5 text-xs font-medium border ${w.is_running ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+                            onClick={() => toggleAuction(w.id, !!w.is_running)}
+                          >
+                            {w.is_running ? "Stop" : "Start"}
+                          </button>
+                          <button
+                            className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                            onClick={() => deleteAuction(w.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}

@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from("items")
-      .select("*")
+      .select("id, lot_id, username, picture_url, price, cancelled, created_at")
       .eq("lot_id", lotId)
       .order("created_at", { ascending: true });
 

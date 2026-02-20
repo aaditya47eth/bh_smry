@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from("lots")
-      .select("*")
+      .select("id, lot_name, created_at, locked")
       .order("created_at", { ascending: false });
     if (error) throw error;
 
@@ -18,9 +18,14 @@ export async function GET(request: Request) {
     if (lots.length === 0) return NextResponse.json({ ok: true, lots: [] });
 
     // Hide lots where every item is cancelled (but keep lots with zero items).
+    // Scope to visible lot ids so we don't scan unrelated item rows.
+    const lotIds = lots
+      .map((l) => Number(l.id))
+      .filter((id) => Number.isFinite(id));
     const { data: itemRows, error: itemErr } = await supabase
       .from("items")
-      .select("lot_id, cancelled");
+      .select("lot_id, cancelled")
+      .in("lot_id", lotIds);
     if (itemErr) throw itemErr;
 
     const stats = new Map<string, { total: number; active: number }>();
