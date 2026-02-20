@@ -99,10 +99,10 @@ export default function PersonClient() {
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">{username || "Person"}</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-neutral-100">{username || "Person"}</h1>
         </div>
         <button
-          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
           onClick={() => router.back()}
         >
           Back
@@ -110,21 +110,21 @@ export default function PersonClient() {
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-600">Total Figures</div>
-          <div className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+          <div className="text-xs text-slate-600 dark:text-neutral-400">Total Figures</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-neutral-100">
             {totals.figs.toLocaleString("en-IN")}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-600">Total Amount</div>
-          <div className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+          <div className="text-xs text-slate-600 dark:text-neutral-400">Total Amount</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-neutral-100">
             ₹{Math.round(totals.amount).toLocaleString("en-IN")}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs text-slate-600">Lots</div>
-          <div className="mt-1 text-xl font-semibold text-slate-900">
+        <div className="rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+          <div className="text-xs text-slate-600 dark:text-neutral-400">Lots</div>
+          <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-neutral-100">
             {groupedByLot.length.toLocaleString("en-IN")}
           </div>
         </div>
@@ -132,17 +132,17 @@ export default function PersonClient() {
 
       <div className="mt-5">
         {loading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
             Loading...
           </div>
         ) : error ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
         ) : !username ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
             Missing `username` in URL.
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
             No items found.
           </div>
         ) : (
@@ -156,11 +156,11 @@ export default function PersonClient() {
               return (
                 <section
                   key={lot.lotId}
-                  className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-lg border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <button
-                      className="truncate text-left text-sm font-semibold text-slate-900 hover:underline"
+                      className="truncate text-left text-sm font-semibold text-slate-900 dark:text-neutral-100 hover:underline"
                       onClick={() =>
                         router.push(
                           `/lot?lot_id=${encodeURIComponent(
@@ -171,7 +171,7 @@ export default function PersonClient() {
                     >
                       {lot.lotName}
                     </button>
-                    <div className="shrink-0 text-sm font-semibold text-slate-900">
+                    <div className="shrink-0 text-sm font-semibold text-slate-900 dark:text-neutral-100">
                       ₹{Math.round(amount).toLocaleString("en-IN")}
                     </div>
                   </div>
@@ -180,10 +180,10 @@ export default function PersonClient() {
                     <div className="flex flex-wrap items-start gap-x-1 gap-y-1">
                       {shown.map((it) => (
                         <div key={String(it.id)} className="w-[72px]">
-                          <div className="mb-1 text-center text-xs font-semibold text-slate-900">
+                          <div className="mb-1 text-center text-xs font-semibold text-slate-900 dark:text-neutral-100">
                             {Math.round(toNumber(it.price)).toLocaleString("en-IN")}
                           </div>
-                          <div className="group relative w-[72px] overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                          <div className="group relative w-[72px] overflow-hidden rounded-md border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900">
                             <div className="h-[72px] w-[72px]">
                               {it.picture_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -202,7 +202,7 @@ export default function PersonClient() {
                             {it.picture_url ? (
                               <button
                                 type="button"
-                                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/90 opacity-0 shadow-sm transition-opacity hover:bg-white group-hover:opacity-100"
+                                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white dark:bg-neutral-800/90 opacity-0 shadow-sm transition-opacity hover:bg-white dark:bg-neutral-800 group-hover:opacity-100"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -226,7 +226,7 @@ export default function PersonClient() {
                     <div className="mt-3 flex items-center justify-end gap-3">
                       {remaining > 0 || isExpanded ? (
                         <button
-                          className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                          className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                           onClick={() =>
                             setExpandedLots((prev) => ({
                               ...prev,
@@ -255,7 +255,7 @@ export default function PersonClient() {
           <img
             src={zoomImageUrl}
             alt="Zoomed"
-            className="max-h-[92vh] max-w-[95vw] rounded-md border border-white/20 bg-white object-contain shadow-2xl"
+            className="max-h-[92vh] max-w-[95vw] rounded-md border border-white/20 bg-white dark:bg-neutral-800 object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

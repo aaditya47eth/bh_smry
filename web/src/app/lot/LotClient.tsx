@@ -67,6 +67,7 @@ export default function LotClient() {
   // UI state
   const [showTotals, setShowTotals] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [zoomLoaded, setZoomLoaded] = useState(false);
   const [quality, setQuality] = useState(2);
   const [generating, setGenerating] = useState(false);
 
@@ -157,6 +158,23 @@ export default function LotClient() {
     void loadLotAndItems(lotId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lotId]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("lotZoomLevel");
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (Number.isFinite(parsed)) {
+        setZoom(parsed);
+      }
+    }
+    setZoomLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (zoomLoaded) {
+      localStorage.setItem("lotZoomLevel", String(zoom));
+    }
+  }, [zoom, zoomLoaded]);
 
   useEffect(() => {
     // Keep CSS variables in sync (legacy zoom behavior)

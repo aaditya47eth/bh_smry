@@ -25,10 +25,12 @@ export async function PATCH(
       lot_name?: string;
       description?: string | null;
       locked?: boolean;
+      created_at?: string;
     };
 
     const updates: Record<string, unknown> = {};
     if (typeof body.locked === "boolean") updates.locked = body.locked;
+    if (body.created_at !== undefined) updates.created_at = body.created_at;
     if (body.lot_name !== undefined) {
       const lotName = (body.lot_name ?? "").trim();
       if (!lotName) {
@@ -55,7 +57,7 @@ export async function PATCH(
       .from("lots")
       .update(updates)
       .eq("id", id)
-      .select("id, lot_name, description, locked")
+      .select("id, lot_name, description, locked, created_at")
       .single();
 
     if (error) throw error;

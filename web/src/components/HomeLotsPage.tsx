@@ -57,6 +57,7 @@ export default function HomeLotsPage() {
   const [editLotId, setEditLotId] = useState<string>("");
   const [editLotName, setEditLotName] = useState("");
   const [editLotDescription, setEditLotDescription] = useState("");
+  const [editLotDate, setEditLotDate] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -183,12 +184,27 @@ export default function HomeLotsPage() {
     setEditLotId(String(lot.id));
     setEditLotName(String(lot.lot_name ?? ""));
     setEditLotDescription(String(lot.description ?? ""));
+    // created_at is likely ISO string; for input[type="date"], we need YYYY-MM-DD
+    if (lot.created_at) {
+      const d = new Date(lot.created_at);
+      if (!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        setEditLotDate(`${yyyy}-${mm}-${dd}`);
+      } else {
+        setEditLotDate("");
+      }
+    } else {
+      setEditLotDate("");
+    }
   }
 
   function closeEditModal() {
     setEditLotId("");
     setEditLotName("");
     setEditLotDescription("");
+    setEditLotDate("");
     setSavingEdit(false);
   }
 
@@ -198,19 +214,32 @@ export default function HomeLotsPage() {
     if (!lotName) return alert("Lot name is required");
     setSavingEdit(true);
     try {
+      const payload: any = {
+        lot_name: lotName,
+        description: editLotDescription.trim() || null
+      };
+      if (editLotDate) {
+        const d = new Date(editLotDate);
+        if (isNaN(d.getTime())) {
+          alert("Invalid date selected");
+          setSavingEdit(false);
+          return;
+        }
+        // Append time to keep it ISO-like
+        payload.created_at = d.toISOString();
+      }
+
       const res = await fetch(`/api/lots/${encodeURIComponent(editLotId)}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          lot_name: lotName,
-          description: editLotDescription.trim() || null
-        })
+        body: JSON.stringify(payload)
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error || "Failed");
       closeEditModal();
       await loadLots();
     } catch (e: any) {
+      console.error("saveLotEdit error:", e);
       alert(e?.message ?? "Failed to update lot");
     } finally {
       setSavingEdit(false);
@@ -236,18 +265,18 @@ export default function HomeLotsPage() {
     <AppShell>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Home</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-neutral-100">Home</h1>
         </div>
       </div>
 
       {canManageLots ? (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm font-medium text-slate-900">Create New Lot</div>
+            <div className="text-sm font-medium text-slate-900 dark:text-neutral-100">Create New Lot</div>
             <div className="flex items-center gap-2">
-              <div className="text-sm font-medium text-slate-700">Month</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-neutral-300">Month</div>
               <select
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
               >
@@ -264,7 +293,7 @@ export default function HomeLotsPage() {
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <input
-              className="min-w-[220px] flex-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+              className="min-w-[220px] flex-1 rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
               placeholder="Lot name (e.g., Lot 12)"
               value={newLotName}
               onChange={(e) => setNewLotName(e.target.value)}
@@ -281,11 +310,11 @@ export default function HomeLotsPage() {
       ) : null}
 
       {!canManageLots ? (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mt-6 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
           <div className="flex items-center gap-2">
-            <div className="text-sm font-medium text-slate-700">Month</div>
+            <div className="text-sm font-medium text-slate-700 dark:text-neutral-300">Month</div>
             <select
-              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+              className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
             >
@@ -303,7 +332,7 @@ export default function HomeLotsPage() {
 
       <div className="mt-6">
         {loading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
             Loading lots...
           </div>
         ) : error ? (
@@ -312,8 +341,8 @@ export default function HomeLotsPage() {
             <div className="mt-1 text-sm">{error}</div>
           </div>
         ) : filteredLots.length === 0 ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-            <div className="font-medium text-slate-900">No lots found</div>
+          <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
+            <div className="font-medium text-slate-900 dark:text-neutral-100">No lots found</div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -346,14 +375,14 @@ export default function HomeLotsPage() {
                       );
                     }
                   }}
-                  className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="cursor-pointer rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-base font-semibold text-slate-900">
+                      <div className="truncate text-base font-semibold text-slate-900 dark:text-neutral-100">
                         {lot.lot_name}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">{createdDate}</div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-neutral-400">{createdDate}</div>
                     </div>
 
                     {canShowLotMenu ? (
@@ -363,7 +392,7 @@ export default function HomeLotsPage() {
                       >
                         <button
                           type="button"
-                          className="rounded-md bg-transparent p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                          className="rounded-md bg-transparent p-2 text-slate-500 dark:text-neutral-400 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900 hover:text-slate-700 dark:text-neutral-300"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -398,7 +427,7 @@ export default function HomeLotsPage() {
 
                         {menuOpen ? (
                           <div
-                            className="absolute right-0 top-10 z-10 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                            className="absolute right-0 top-10 z-10 w-40 overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -406,7 +435,7 @@ export default function HomeLotsPage() {
                           >
                             {canEditLots ? (
                               <button
-                                className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                                className="block w-full px-3 py-2 text-left text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                                 onClick={() => {
                                   setOpenMenuLotId("");
                                   openEditModal(lot);
@@ -433,7 +462,7 @@ export default function HomeLotsPage() {
                   </div>
 
                   {lot.description ? (
-                    <div className="mt-2 text-sm text-slate-600">{lot.description}</div>
+                    <div className="mt-2 text-sm text-slate-600 dark:text-neutral-400">{lot.description}</div>
                   ) : null}
                 </div>
               );
@@ -448,25 +477,35 @@ export default function HomeLotsPage() {
           onClick={closeEditModal}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+            className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold text-slate-900">Edit Lot</div>
+            <div className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Edit Lot</div>
 
             <div className="mt-4 grid grid-cols-1 gap-3">
               <label className="block">
-                <span className="text-sm text-slate-700">Lot name</span>
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Lot name</span>
                 <input
-                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                   value={editLotName}
                   onChange={(e) => setEditLotName(e.target.value)}
                 />
               </label>
 
               <label className="block">
-                <span className="text-sm text-slate-700">Description</span>
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Date</span>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  value={editLotDate}
+                  onChange={(e) => setEditLotDate(e.target.value)}
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Description</span>
                 <textarea
-                  className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
                   value={editLotDescription}
                   onChange={(e) => setEditLotDescription(e.target.value)}
                   rows={3}
@@ -476,7 +515,7 @@ export default function HomeLotsPage() {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
                 onClick={closeEditModal}
                 disabled={savingEdit}
               >
