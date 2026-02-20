@@ -219,11 +219,14 @@ export default function HomeLotsPage() {
         description: editLotDescription.trim() || null
       };
       if (editLotDate) {
-        // Append time to keep it ISO-like, or API might handle YYYY-MM-DD
-        // Better to send a full ISO string to match DB expectation if possible,
-        // but often YYYY-MM-DD is accepted by Supabase/Postgres as start of day.
-        // Let's send it as is or append T00:00:00Z to be safe if the API expects timestamptz
-        payload.created_at = new Date(editLotDate).toISOString();
+        const d = new Date(editLotDate);
+        if (isNaN(d.getTime())) {
+          alert("Invalid date selected");
+          setSavingEdit(false);
+          return;
+        }
+        // Append time to keep it ISO-like
+        payload.created_at = d.toISOString();
       }
 
       const res = await fetch(`/api/lots/${encodeURIComponent(editLotId)}`, {
@@ -236,6 +239,7 @@ export default function HomeLotsPage() {
       closeEditModal();
       await loadLots();
     } catch (e: any) {
+      console.error("saveLotEdit error:", e);
       alert(e?.message ?? "Failed to update lot");
     } finally {
       setSavingEdit(false);
