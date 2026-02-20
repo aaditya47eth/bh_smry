@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "BH Summary Maker",
-  description: "BH Summary Maker - Next.js + TypeScript + Tailwind"
+  description: "BH Summary Maker - Next.js + TypeScript + Tailwind",
+  icons: {
+    icon: "https://res.cloudinary.com/daye1yfzy/image/upload/v1765211893/ctcqhyxglwe4j13sorwu.png"
+  }
 };
 
 export default function RootLayout({

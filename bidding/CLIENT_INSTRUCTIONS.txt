@@ -1,0 +1,39 @@
+==============================================
+   FACEBOOK AUCTION SCRAPER - CLIENT GUIDE
+==============================================
+
+REQUIREMENTS:
+1. Node.js installed (https://nodejs.org/en/download/prebuilt-installer)
+   - Download the "LTS" version for Windows.
+   - Install it (just click Next > Next > Finish).
+
+SETUP:
+1. Unzip the "bidding" folder to your Desktop or Documents.
+2. Open the folder.
+3. Make sure there is a file named ".env" with the correct settings.
+   - If you don't see it, ask your developer for the file.
+   - It contains the connection keys to the database.
+
+HOW TO RUN:
+1. Double-click the "run.bat" file.
+2. A black window (terminal) will open.
+   - On the first run, it will install some files (takes 1-2 mins).
+   - Then it will say "Server running..." and "Polling Supabase...".
+3. Keep this black window OPEN. Minimize it, but don't close it.
+
+HOW TO USE:
+1. Go to your Admin Panel website.
+2. Go to the "Auction" tab.
+3. Paste the Facebook Post URL you want to track.
+4. Click "Start Tracking".
+5. The black window on your computer will open a Chrome browser and start reading comments.
+   - DO NOT close that Chrome window manually.
+   - You can minimize it.
+
+TROUBLESHOOTING:
+- If the black window closes immediately, something is wrong. 
+- Try running it again.
+- If it says "Login required", the Chrome window might pause. You can manually log in to Facebook in that window if needed, but usually it uses saved cookies.
+
+STOPPING:
+- To stop, just close the black window.

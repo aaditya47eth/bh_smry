@@ -175,7 +175,11 @@ export default function LotClient() {
     setLoading(true);
     setError(null);
     try {
-      const lotsRes = await fetch("/api/lots", { cache: "no-store" });
+      const lotsPromise = fetch("/api/lots", { cache: "no-store" });
+      const usersPromise =
+        canEdit || canAdd ? fetch("/api/admin/users", { cache: "no-store" }) : null;
+
+      const lotsRes = await lotsPromise;
       const lotsJson = (await lotsRes.json()) as {
         ok: boolean;
         lots?: LotRow[];
@@ -190,18 +194,14 @@ export default function LotClient() {
       });
       setLots(lotsList);
 
-      if (canEdit || canAdd) {
-        const usersRes = await fetch("/api/admin/users", { cache: "no-store" });
+      if (usersPromise) {
+        const usersRes = await usersPromise;
         const usersJson = (await usersRes.json()) as {
           ok: boolean;
           users?: UserRow[];
           error?: string;
         };
-        if (usersRes.ok && usersJson.ok) {
-          setUsers(usersJson.users ?? []);
-        } else {
-          setUsers([]);
-        }
+        setUsers(usersRes.ok && usersJson.ok ? usersJson.users ?? [] : []);
       } else {
         setUsers([]);
       }
