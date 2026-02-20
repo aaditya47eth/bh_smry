@@ -1,31 +1,15 @@
 {
-  "name": "fb-auction-tracker",
-  "version": "1.0.0",
-  "description": "Local tool to track auction bids on a Facebook post",
-  "main": "server.js",
+  "name": "bh-auction-scraper",
+  "version": "2.0.0",
+  "description": "Facebook Auction Scraper for BH Summary Maker",
+  "main": "scraper.js",
   "scripts": {
-    "start": "node server.js",
-    "start:supabase": "node server-supabase.js",
-    "dev": "nodemon server.js",
-    "dev:supabase": "nodemon server-supabase.js"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "start": "node scraper.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "debug": "^4.4.3",
-    "dotenv": "^16.0.0",
-    "express": "^4.18.0",
-    "media-typer": "^1.1.0",
-    "puppeteer-core": "^24.32.0",
-    "socket.io": "^4.6.0",
-    "tesseract.js": "^6.0.1",
-    "ws": "^8.18.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.11"
-  },
-  "author": "",
-  "license": "ISC"
+    "dotenv": "^16.4.1",
+    "puppeteer-core": "^22.0.0",
+    "tesseract.js": "^5.0.4"
+  }
 }
