@@ -166,6 +166,10 @@ export default function AdminPage() {
   const [newAuctionUrl, setNewAuctionUrl] = useState("");
   const [addingAuction, setAddingAuction] = useState(false);
 
+  const [cookiesInput, setCookiesInput] = useState("");
+  const [savingCookies, setSavingCookies] = useState(false);
+  const [cookiesStatus, setCookiesStatus] = useState<string | null>(null);
+
   const [viewBidsWatcherId, setViewBidsWatcherId] = useState<string | null>(null);
   const [bids, setBids] = useState<BidRow[]>([]);
   const [bidsLoading, setBidsLoading] = useState(false);
@@ -394,6 +398,40 @@ export default function AdminPage() {
     }
   }
 
+  async function saveCookies() {
+    if (!cookiesInput.trim()) return;
+    setSavingCookies(true);
+    try {
+      const res = await fetch("/api/admin/cookies", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cookies: cookiesInput })
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      setCookiesStatus("Cookies saved successfully!");
+      setCookiesInput("");
+      await checkCookieStatus();
+      setTimeout(() => setCookiesStatus(null), 5000);
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to save cookies");
+    } finally {
+      setSavingCookies(false);
+    }
+  }
+
+  async function checkCookieStatus() {
+    try {
+      const res = await fetch("/api/admin/cookies");
+      const json = (await res.json()) as ApiOk<{ lastUpdated: string | null }> | ApiErr;
+      if (res.ok && json.ok && (json as any).lastUpdated) {
+        setCookiesStatus(`Cookies active (Last updated: ${new Date((json as any).lastUpdated).toLocaleString()})`);
+      } else {
+        setCookiesStatus("No cookies set. Scraper may fail.");
+      }
+    } catch {}
+  }
+
   async function openBidsModal(watcherId: string | number) {
     setViewBidsWatcherId(String(watcherId));
     setBidsLoading(true);
@@ -426,6 +464,7 @@ export default function AdminPage() {
     }
     if (section === "auction") {
       void loadAuctions();
+      void checkCookieStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
@@ -1395,6 +1434,35 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="mt-0 space-y-4">
+              {/* Cookies Section */}
+              <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+                <div className="mb-3">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Facebook Session (Cookies)</div>
+                  <div className="mt-0.5 text-xs text-slate-500">
+                    Paste your Facebook cookies JSON here to allow the scraper to log in.
+                  </div>
+                </div>
+                <textarea
+                  className="w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                  rows={3}
+                  placeholder='[{"domain": ".facebook.com", ...}]'
+                  value={cookiesInput}
+                  onChange={(e) => setCookiesInput(e.target.value)}
+                />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-xs font-medium text-emerald-600">
+                    {cookiesStatus}
+                  </div>
+                  <button
+                    className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={saveCookies}
+                    disabled={savingCookies || !cookiesInput.trim()}
+                  >
+                    {savingCookies ? "Saving..." : "Save Cookies"}
+                  </button>
+                </div>
+              </div>
+
               <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>

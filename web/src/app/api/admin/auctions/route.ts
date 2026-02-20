@@ -38,6 +38,26 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServerClient();
     
+    // Ensure post exists in bidding_posts first (to satisfy FK constraint)
+    const { data: postData, error: postError } = await supabase
+      .from('bidding_posts')
+      .select('post_url')
+      .eq('post_url', postUrl)
+      .single();
+
+    if (!postData) {
+      const { error: createPostError } = await supabase
+        .from('bidding_posts')
+        .insert([{ post_url: postUrl }]);
+      
+      if (createPostError) {
+        // Ignore unique violation if race condition occurred
+        if (createPostError.code !== '23505') {
+           throw createPostError;
+        }
+      }
+    }
+    
     // Check if watcher exists for this user/post
     const { data: existing } = await supabase
         .from('bidding_watchers')
