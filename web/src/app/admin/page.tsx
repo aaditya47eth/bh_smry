@@ -2101,7 +2101,7 @@ export default function AdminPage() {
 
                       for (let i = 1; i <= limit; i++) {
                           const itemBids = itemMap.get(i) || [];
-                          // Sort by amount desc, then time desc
+                          // Sort by amount desc, then time asc (First bid wins)
                           itemBids.sort((a, b) => {
                               const amountA = a.amount || 0;
                               const amountB = b.amount || 0;
@@ -2109,7 +2109,7 @@ export default function AdminPage() {
                               
                               const timeA = new Date(a.timestamp || 0).getTime();
                               const timeB = new Date(b.timestamp || 0).getTime();
-                              return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+                              return (isNaN(timeA) ? 0 : timeA) - (isNaN(timeB) ? 0 : timeB);
                           });
                           
                           const highestBid = itemBids[0];

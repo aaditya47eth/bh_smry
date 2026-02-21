@@ -10,11 +10,10 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServerClient();
     
     // Fetch all bids for posts that the user is watching
-    // First get the user's watched posts
+    // First get all watched posts (removed created_by filter to show all system activity)
     const { data: watchers, error: watcherError } = await supabase
         .from('bidding_watchers')
-        .select('post_url, my_name')
-        .eq('created_by', auth.user.username);
+        .select('post_url, my_name');
     
     if (watcherError) throw watcherError;
     
