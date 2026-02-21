@@ -114,7 +114,7 @@ export async function GET(request: Request) {
                          my_bid: state.myHighestBid,
                          winning_bid: state.currentHighBid,
                          winner: state.currentHighBidder,
-                         timestamp: new Date().toISOString() // This is a status check, so timestamp is "now" effectively
+                         timestamp: state.lastBidTime || new Date().toISOString()
                      });
                  }
              }
