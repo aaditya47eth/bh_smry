@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.from("users").insert([
       {
         username,
-        number: number || null,
+        number: number, // Allow empty string, do not force null
         access_level,
         password: password ? hashPassword(password) : "",
         auth_user_id: authUserId,

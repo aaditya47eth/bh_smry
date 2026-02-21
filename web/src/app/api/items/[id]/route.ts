@@ -109,11 +109,11 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAuth(_request, ["admin", "manager"]);
+    const auth = await requireAuth(request, ["admin", "manager"]);
     if (!auth.ok) return auth.response;
 
     const { id } = await ctx.params;
