@@ -78,8 +78,12 @@ type AuctionWatcherRow = {
   post_url: string;
   my_name: string;
   is_running: boolean;
+  is_bookmarked?: boolean;
   created_by: string;
   created_at: string;
+  images?: string[];
+  last_bid_amount?: number | null;
+  last_bid_at?: string | null;
 };
 
 type BidRow = {
@@ -94,7 +98,19 @@ type BidRow = {
   profile_pic?: string;
 };
 
+type ActivityLogItem = {
+  type: string;
+  post_url: string;
+  post_label: string;
+  my_bid: number;
+  winning_bid: number;
+  winner: string;
+  timestamp: string;
+};
+
 const ADMIN_SECTION_KEY = "adminPanelSelectedSection";
+const CLOUDINARY_CLOUD_NAME = "daye1yfzy";
+const CLOUDINARY_UPLOAD_PRESET = "bh_smry_upload";
 
 function formatInr(amount: number): string {
   return amount.toLocaleString("en-IN", {
@@ -163,19 +179,51 @@ export default function AdminPage() {
   const [auctionWatchers, setAuctionWatchers] = useState<AuctionWatcherRow[]>([]);
   const [auctionLoading, setAuctionLoading] = useState(false);
   const [auctionError, setAuctionError] = useState<string | null>(null);
-  const [newAuctionUrl, setNewAuctionUrl] = useState("");
-  const [addingAuction, setAddingAuction] = useState(false);
+  const [auctionSort, setAuctionSort] = useState<"time_added" | "post_number" | "recent_bid">("time_added");
 
   const [cookiesInput, setCookiesInput] = useState("");
   const [savingCookies, setSavingCookies] = useState(false);
   const [cookiesStatus, setCookiesStatus] = useState<string | null>(null);
 
   const [viewBidsWatcherId, setViewBidsWatcherId] = useState<string | null>(null);
+  const [viewImages, setViewImages] = useState<string[] | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [bids, setBids] = useState<BidRow[]>([]);
   const [bidsLoading, setBidsLoading] = useState(false);
   const [bidsError, setBidsError] = useState<string | null>(null);
 
+  const [activityLog, setActivityLog] = useState<ActivityLogItem[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
+  const [showAddAuction, setShowAddAuction] = useState(false);
+  const [showEditAuction, setShowEditAuction] = useState(false);
+  const [activeAuction, setActiveAuction] = useState<AuctionWatcherRow | null>(null);
+  const [cardImageIndices, setCardImageIndices] = useState<Record<string, number>>({});
+  const [auctionForm, setAuctionForm] = useState({
+    postUrl: "",
+    postNumber: "",
+    images: [] as string[]
+  });
+  const [uploadingImage, setUploadingImage] = useState(false);
+
   const [showAdd, setShowAdd] = useState(false);
+
+  useEffect(() => {
+    if (!viewImages) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        setCurrentImageIndex((prev) => (prev === 0 ? viewImages.length - 1 : prev - 1));
+      } else if (e.key === "ArrowRight") {
+        setCurrentImageIndex((prev) => (prev === viewImages.length - 1 ? 0 : prev + 1));
+      } else if (e.key === "Escape") {
+        setViewImages(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [viewImages]);
   const [showEdit, setShowEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeUser, setActiveUser] = useState<UserRow | null>(null);
@@ -205,9 +253,9 @@ export default function AdminPage() {
     const savedSection = (window.localStorage.getItem(ADMIN_SECTION_KEY) ||
       "") as AdminSection;
     const initial: AdminSection =
-      paramSection && ["users", "stats", "checklist", "auction"].includes(paramSection)
+      paramSection && ["users", "stats", "checklist", "auction", "activity-log"].includes(paramSection)
         ? paramSection
-        : savedSection && ["users", "stats", "checklist", "auction"].includes(savedSection)
+        : savedSection && ["users", "stats", "checklist", "auction", "activity-log"].includes(savedSection)
           ? savedSection
           : "users";
     setSection(initial);
@@ -349,38 +397,32 @@ export default function AdminPage() {
     }
   }
 
-  async function addAuction() {
-    if (!newAuctionUrl.trim()) return;
-    setAddingAuction(true);
+  async function loadActivityLog() {
+    setActivityLoading(true);
     try {
-      const res = await fetch("/api/admin/auctions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ postUrl: newAuctionUrl.trim(), intervalSec: 60 })
-      });
-      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      const res = await fetch("/api/admin/activity-log", { cache: "no-store" });
+      const json = (await res.json()) as ApiOk<{ activities: ActivityLogItem[] }> | ApiErr;
       if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
-      setNewAuctionUrl("");
-      await loadAuctions();
+      setActivityLog(json.activities);
     } catch (e: any) {
-      alert(e?.message ?? "Failed to add auction");
+      console.error("Failed to load activity log", e);
     } finally {
-      setAddingAuction(false);
+      setActivityLoading(false);
     }
   }
 
-  async function toggleAuction(id: string | number, currentStatus: boolean) {
+  async function toggleBookmark(id: string | number, currentStatus: boolean) {
     try {
       const res = await fetch("/api/admin/auctions", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id, is_running: !currentStatus })
+        body: JSON.stringify({ id, is_bookmarked: !currentStatus })
       });
       const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
       if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
       await loadAuctions();
     } catch (e: any) {
-      alert(e?.message ?? "Failed to toggle auction");
+      alert(e?.message ?? "Failed to toggle bookmark");
     }
   }
 
@@ -395,6 +437,20 @@ export default function AdminPage() {
       await loadAuctions();
     } catch (e: any) {
       alert(e?.message ?? "Failed to delete auction");
+    }
+  }
+
+  async function deleteAllAuctions() {
+    if (!confirm("Are you sure you want to delete ALL auction watchers? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/admin/auctions?all=true`, {
+        method: "DELETE"
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      await loadAuctions();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to delete all auctions");
     }
   }
 
@@ -470,6 +526,10 @@ export default function AdminPage() {
   }, [section]);
 
   useEffect(() => {
+    void loadActivityLog();
+  }, []);
+
+  useEffect(() => {
     if (section !== "stats") return;
     void loadStats(statsMonth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -488,6 +548,31 @@ export default function AdminPage() {
       return username.includes(term) || number.includes(term);
     });
   }, [q, users]);
+
+  const sortedAuctions = useMemo(() => {
+    const sorted = [...auctionWatchers];
+    sorted.sort((a, b) => {
+      // Always prioritize bookmarks
+      if (a.is_bookmarked && !b.is_bookmarked) return -1;
+      if (!a.is_bookmarked && b.is_bookmarked) return 1;
+
+      if (auctionSort === "time_added") {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      } else if (auctionSort === "post_number") {
+        const getNum = (name: string) => {
+            const m = name.match(/Post_No\.(\d+-\d+)/);
+            return m ? m[1] : name;
+        };
+        return getNum(a.my_name).localeCompare(getNum(b.my_name));
+      } else if (auctionSort === "recent_bid") {
+        const timeA = a.last_bid_at ? new Date(a.last_bid_at).getTime() : 0;
+        const timeB = b.last_bid_at ? new Date(b.last_bid_at).getTime() : 0;
+        return timeB - timeA;
+      }
+      return 0;
+    });
+    return sorted;
+  }, [auctionWatchers, auctionSort]);
 
   const title = section === "users" ? "Collector Management" : section === "stats" ? "Statistics" : section === "checklist" ? "Checklist" : "Auction Scraper";
 
@@ -665,6 +750,22 @@ export default function AdminPage() {
     }
   }
 
+  async function uploadToCloudinary(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.error?.message || "Cloudinary upload failed");
+    }
+    const json = (await res.json()) as { secure_url: string };
+    return json.secure_url;
+  }
+
   async function deleteUser(u: UserRow) {
     if (!confirm(`Delete user "${u.username ?? "Unknown"}"?`)) return;
     try {
@@ -677,6 +778,73 @@ export default function AdminPage() {
     } catch (e: any) {
       alert(e?.message ?? "Failed to delete user");
     }
+  }
+
+  async function createAuction() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/auctions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          postUrl: auctionForm.postUrl,
+          my_name: auctionForm.postNumber,
+          images: auctionForm.images
+        })
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      setShowAddAuction(false);
+      await loadAuctions();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to create auction");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateAuction() {
+    if (!activeAuction) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/auctions", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: activeAuction.id,
+          post_url: auctionForm.postUrl,
+          my_name: auctionForm.postNumber,
+          images: auctionForm.images
+        })
+      });
+      const json = (await res.json()) as ApiOk<Record<string, never>> | ApiErr;
+      if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
+      setShowEditAuction(false);
+      setActiveAuction(null);
+      await loadAuctions();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to update auction");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openAddAuction() {
+    setAuctionForm({ postUrl: "", postNumber: "", images: [] });
+    setShowAddAuction(true);
+  }
+
+  function openEditAuction(w: AuctionWatcherRow) {
+    const postNoMatch = w.my_name.match(/Post_No\.(\d+-\d+)/);
+    const displayPostNo = postNoMatch ? `Post_No.${postNoMatch[1]}` : w.my_name;
+    
+    setActiveAuction(w);
+    setAuctionForm({
+        postUrl: w.post_url,
+        postNumber: displayPostNo,
+        images: w.images || []
+    });
+    setShowEditAuction(true);
   }
 
   return (
@@ -698,35 +866,90 @@ export default function AdminPage() {
       </div>
 
       <div className="mt-4 flex flex-col gap-4 lg:flex-row">
-        <div className="inline-flex self-start rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-1 shadow-sm lg:flex-col">
-          {(
-            [
-              { key: "users", label: "Collector Management" },
-              { key: "stats", label: "Statistics" },
-              { key: "checklist", label: "Checklist" },
-              { key: "auction", label: "Auction" }
-            ] as const
-          ).map((t) => {
-            const active = section === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => {
-                  if (t.key === "checklist") {
-                    setSelectedLotId("");
-                    setSelectedLotName("");
-                    setChecklistItems([]);
-                  }
-                  setSection(t.key);
-                }}
-                className={`rounded-lg px-4 py-2 text-sm font-medium text-left transition ${
-                  active ? "bg-slate-100 text-[#2c3e50]" : "text-slate-600 dark:text-neutral-400 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
+        <div className="inline-flex flex-col gap-4 self-start lg:w-64 lg:sticky lg:top-4">
+          <div className="flex flex-col rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-1 shadow-sm">
+            {(
+              [
+                { key: "users", label: "Collector Management" },
+                { key: "stats", label: "Statistics" },
+                { key: "checklist", label: "Checklist" },
+                { key: "auction", label: "Auction" }
+              ] as const
+            ).map((t) => {
+              const active = section === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    if (t.key === "checklist") {
+                      setSelectedLotId("");
+                      setSelectedLotName("");
+                      setChecklistItems([]);
+                    }
+                    setSection(t.key);
+                  }}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium text-left transition ${
+                    active ? "bg-slate-100 text-[#2c3e50]" : "text-slate-600 dark:text-neutral-400 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Activity Log Widget - Only visible in Auction section */}
+          {section === "auction" && (
+            <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm" style={{ minHeight: '400px', maxHeight: 'calc(100vh - 200px)' }}>
+              <div className="border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 font-semibold text-slate-900 dark:text-neutral-100">
+                Activity Log
+              </div>
+              <div className="flex-1 overflow-y-auto p-0">
+                {activityLoading ? (
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">Loading...</div>
+                ) : activityLog.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">No activity yet.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-neutral-700">
+                    {activityLog.map((log, i) => (
+                      <div key={i} className="p-3 hover:bg-slate-50 dark:hover:bg-neutral-700/50">
+                        <div className="flex items-start gap-2">
+                          <div className={`mt-0.5 flex h-2 w-2 shrink-0 rounded-full ${log.type === 'outbidded' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-medium text-slate-900 dark:text-neutral-100">
+                              {log.type === 'outbidded' ? 'Outbidded!' : 'Bid Placed'}
+                            </div>
+                            <a 
+                              href={log.post_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="mt-0.5 block truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
+                              title={log.post_label}
+                            >
+                              {log.post_label}
+                            </a>
+                            <div className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
+                              {log.type === 'outbidded' ? (
+                                  <>
+                                      You: ₹{log.my_bid} <br/>
+                                      Winner: {log.winner} (₹{log.winning_bid})
+                                  </>
+                              ) : (
+                                  <>You bid ₹{log.my_bid}</>
+                              )}
+                            </div>
+                            <div className="mt-1 text-[10px] text-slate-400">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -1435,57 +1658,65 @@ export default function AdminPage() {
           ) : (
             <div className="mt-0 space-y-4">
               {/* Cookies Section */}
-              <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
-                <div className="mb-3">
-                  <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Facebook Session (Cookies)</div>
-                  <div className="mt-0.5 text-xs text-slate-500">
-                    Paste your Facebook cookies JSON here to allow the scraper to log in.
-                  </div>
-                </div>
-                <textarea
-                  className="w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                  rows={3}
-                  placeholder='[{"domain": ".facebook.com", ...}]'
-                  value={cookiesInput}
-                  onChange={(e) => setCookiesInput(e.target.value)}
-                />
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="text-xs font-medium text-emerald-600">
-                    {cookiesStatus}
-                  </div>
-                  <button
-                    className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={saveCookies}
-                    disabled={savingCookies || !cookiesInput.trim()}
-                  >
-                    {savingCookies ? "Saving..." : "Save Cookies"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900 dark:text-neutral-100">Add New Auction</div>
+              <details className="group rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm">
+                <summary className="flex cursor-pointer items-center justify-between p-4 font-semibold text-slate-900 dark:text-neutral-100">
+                  <span>Facebook Session (Cookies)</span>
+                  <span className="text-slate-500 group-open:rotate-180">▼</span>
+                </summary>
+                <div className="px-4 pb-4">
+                  <div className="mb-3">
                     <div className="mt-0.5 text-xs text-slate-500">
-                      Paste Facebook Post URL to start tracking bids.
+                      Paste your Facebook cookies JSON here to allow the scraper to log in.
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      className="w-[300px] rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                      placeholder="https://facebook.com/..."
-                      value={newAuctionUrl}
-                      onChange={(e) => setNewAuctionUrl(e.target.value)}
-                    />
+                  <textarea
+                    className="w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    rows={3}
+                    placeholder='[{"domain": ".facebook.com", ...}]'
+                    value={cookiesInput}
+                    onChange={(e) => setCookiesInput(e.target.value)}
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-xs font-medium text-emerald-600">
+                      {cookiesStatus}
+                    </div>
                     <button
                       className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                      onClick={addAuction}
-                      disabled={addingAuction || !newAuctionUrl.trim()}
+                      onClick={saveCookies}
+                      disabled={savingCookies || !cookiesInput.trim()}
                     >
-                      {addingAuction ? "Adding..." : "Start Tracking"}
+                      {savingCookies ? "Saving..." : "Save Cookies"}
                     </button>
                   </div>
+                </div>
+              </details>
+
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-700 dark:text-neutral-300">Sort by:</span>
+                    <select 
+                        className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                        value={auctionSort}
+                        onChange={(e) => setAuctionSort(e.target.value as any)}
+                    >
+                        <option value="time_added">Time Added</option>
+                        <option value="post_number">Post Number</option>
+                        <option value="recent_bid">Recent Bid</option>
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        className="rounded-md bg-[#2c3e50] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1f2d3a]"
+                        onClick={openAddAuction}
+                    >
+                        Add Post
+                    </button>
+                    <button
+                        className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"
+                        onClick={deleteAllAuctions}
+                    >
+                        Delete All
+                    </button>
                 </div>
               </div>
 
@@ -1497,46 +1728,100 @@ export default function AdminPage() {
                 <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
                   {auctionError}
                 </div>
-              ) : auctionWatchers.length === 0 ? (
+              ) : sortedAuctions.length === 0 ? (
                 <div className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 text-slate-600 dark:text-neutral-400 shadow-sm">
-                  No active auctions. Add a URL above to start.
+                  No active auctions found. Run the scraper to discover posts.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
-                  {auctionWatchers.map((w) => (
+                  {sortedAuctions.map((w) => {
+                    const postNoMatch = w.my_name.match(/Post_No\.(\d+-\d+)/);
+                    const displayName = postNoMatch ? `Post_No.${postNoMatch[1]}` : w.my_name;
+                    const currentImgIdx = cardImageIndices[w.id] || 0;
+                    const images = w.images || [];
+                    
+                    return (
                     <div key={w.id} className="rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-slate-900 dark:text-neutral-100" title={w.post_url}>
-                            {w.post_url}
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => toggleBookmark(w.id, !!w.is_bookmarked)}
+                                className={`text-xl focus:outline-none ${w.is_bookmarked ? "text-amber-400" : "text-slate-300 hover:text-amber-400"}`}
+                                title={w.is_bookmarked ? "Remove bookmark" : "Bookmark this post"}
+                              >
+                                ★
+                              </button>
+                              <a 
+                                href={w.post_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-lg font-bold text-blue-600 hover:underline dark:text-blue-400"
+                              >
+                                {displayName}
+                              </a>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              Created by: {w.created_by} • {new Date(w.created_at).toLocaleString()}
+                              {w.last_bid_amount && (
+                                <span className="ml-2 font-medium text-emerald-600 dark:text-emerald-400">
+                                    • Last Bid: ₹{w.last_bid_amount} ({w.last_bid_at ? new Date(w.last_bid_at).toLocaleTimeString() : '?'})
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            Status: <span className={w.is_running ? "text-emerald-600 font-medium" : "text-slate-500"}>{w.is_running ? "Running" : "Stopped"}</span> • Created by: {w.created_by}
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
+                              onClick={() => openEditAuction(w)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
+                              onClick={() => openBidsModal(w.id)}
+                            >
+                              View Bids
+                            </button>
+                            <button
+                              className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                              onClick={() => deleteAuction(w.id)}
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
-                            onClick={() => openBidsModal(w.id)}
-                          >
-                            View Bids
-                          </button>
-                          <button
-                            className={`rounded-md px-3 py-1.5 text-xs font-medium border ${w.is_running ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
-                            onClick={() => toggleAuction(w.id, !!w.is_running)}
-                          >
-                            {w.is_running ? "Stop" : "Start"}
-                          </button>
-                          <button
-                            className="rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                            onClick={() => deleteAuction(w.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
+
+                        {/* Images Row */}
+                        {w.images && w.images.length > 0 ? (
+                          <div className="flex gap-2 overflow-x-auto pb-2">
+                            {w.images.map((img, idx) => (
+                              <div 
+                                key={idx}
+                                className="relative h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-md border border-slate-200 dark:border-neutral-700 hover:opacity-90"
+                                onClick={() => {
+                                  setViewImages(w.images || []);
+                                  setCurrentImageIndex(idx);
+                                }}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img 
+                                  src={img} 
+                                  alt={`Image ${idx + 1}`} 
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs italic text-slate-400">No images found</div>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
@@ -1708,6 +1993,191 @@ export default function AdminPage() {
                 onClick={() => setViewBidsWatcherId(null)}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewImages && viewImages.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setViewImages(null)}
+        >
+          <div
+            className="relative flex h-full max-h-[90vh] w-full max-w-5xl items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute right-4 top-4 z-10 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+              onClick={() => setViewImages(null)}
+            >
+              ✕
+            </button>
+
+            {/* Previous Button */}
+            {viewImages.length > 1 && (
+              <button
+                className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/70 disabled:opacity-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex((prev) => (prev === 0 ? viewImages.length - 1 : prev - 1));
+                }}
+              >
+                ‹
+              </button>
+            )}
+
+            {/* Main Image */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={viewImages[currentImageIndex]}
+              alt={`Image ${currentImageIndex + 1}`}
+              className="max-h-full max-w-full object-contain shadow-2xl"
+            />
+
+            {/* Next Button */}
+            {viewImages.length > 1 && (
+              <button
+                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/70 disabled:opacity-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex((prev) => (prev === viewImages.length - 1 ? 0 : prev + 1));
+                }}
+              >
+                ›
+              </button>
+            )}
+
+            {/* Counter */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
+              {currentImageIndex + 1} / {viewImages.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Auction Modal */}
+      {(showAddAuction || showEditAuction) && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => {
+            setShowAddAuction(false);
+            setShowEditAuction(false);
+            setActiveAuction(null);
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold text-slate-900 dark:text-neutral-100">
+              {showAddAuction ? "Add New Post" : "Edit Post"}
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <label className="block">
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Post URL</span>
+                <input
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  value={auctionForm.postUrl}
+                  onChange={(e) => setAuctionForm((f) => ({ ...f, postUrl: e.target.value }))}
+                  placeholder="https://facebook.com/..."
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Post Number / Name</span>
+                <input
+                  className="mt-1 w-full rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[#2c3e50]/15"
+                  value={auctionForm.postNumber}
+                  onChange={(e) => setAuctionForm((f) => ({ ...f, postNumber: e.target.value }))}
+                  placeholder="Post_No.XXXX-XX"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm text-slate-700 dark:text-neutral-300">Images</span>
+                <div 
+                    className="mt-1 flex min-h-[100px] cursor-text flex-col items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500 hover:bg-slate-100 focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800"
+                    tabIndex={0}
+                    onPaste={async (e) => {
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+
+                        for (const item of items) {
+                            if (item.type.startsWith("image/")) {
+                                const file = item.getAsFile();
+                                if (file) {
+                                    setUploadingImage(true);
+                                    try {
+                                        const url = await uploadToCloudinary(file);
+                                        setAuctionForm(prev => ({ ...prev, images: [...prev.images, url] }));
+                                    } catch (err: any) {
+                                        alert("Failed to upload image: " + err.message);
+                                    } finally {
+                                        setUploadingImage(false);
+                                    }
+                                }
+                            } else if (item.type === "text/plain") {
+                                item.getAsString((text) => {
+                                    if (text.startsWith("http")) {
+                                        setAuctionForm(prev => ({ ...prev, images: [...prev.images, text] }));
+                                    }
+                                });
+                            }
+                        }
+                    }}
+                >
+                    {uploadingImage ? (
+                        <span>Uploading...</span>
+                    ) : (
+                        <span>Click here and press Ctrl+V to paste image or URL</span>
+                    )}
+                </div>
+
+                {/* Image List */}
+                {auctionForm.images.length > 0 && (
+                    <div className="mt-3 grid grid-cols-4 gap-2">
+                        {auctionForm.images.map((img, idx) => (
+                            <div key={idx} className="relative aspect-square overflow-hidden rounded-md border border-slate-200 dark:border-neutral-700">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={img} alt="" className="h-full w-full object-cover" />
+                                <button
+                                    className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                                    onClick={() => {
+                                        setAuctionForm(prev => ({
+                                            ...prev,
+                                            images: prev.images.filter((_, i) => i !== idx)
+                                        }));
+                                    }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
+                onClick={() => {
+                  setShowAddAuction(false);
+                  setShowEditAuction(false);
+                  setActiveAuction(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-md bg-[#2c3e50] px-3 py-2 text-sm font-medium text-white hover:bg-[#1f2d3a] disabled:opacity-60"
+                disabled={saving}
+                onClick={showAddAuction ? createAuction : updateAuction}
+              >
+                {saving ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
