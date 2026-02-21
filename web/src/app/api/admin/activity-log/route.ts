@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     if (bidsError) throw bidsError;
 
     const activities: any[] = [];
+    const winningBids: any[] = [];
     
     // Process bids to find outbid events
     // Group bids by post
@@ -44,85 +45,88 @@ export async function GET(request: Request) {
         }
         bidsByPost.get(bid.post_url).push(bid);
     });
-
-    // For each post, track the current highest bid and if it's me
-    // Since we don't have a strict "my user id" in bids table (it uses Facebook names),
-    // we have to guess or assume the user knows their FB name.
-    // However, the user said "if i got outbidded".
-    // We can look for bids where bidder_name matches `my_name` from watcher?
-    // But `my_name` is usually set to "My Name - Post No".
-    // Let's assume the user's name in `bidding_watchers` (the `my_name` field) MIGHT be their FB name,
-    // OR we just list all high bid changes and let the user see.
-    // BUT the prompt specifically said "if i got outbidded".
-    // Let's try to match `auth.user.name` or `auth.user.username` against `bidder_name`.
-    // Or maybe we can just show "New highest bid by X" and highlight if it's NOT me.
     
-    // Let's assume the user's configured name in the watcher is their "display name" for the auction?
-    // Actually, `my_name` in `bidding_watchers` is just a label for the watcher.
-    
-    // Let's look for bids that match the user's `auth.user.name` (if set) or `auth.user.username`.
-    // This is imperfect but the best we can do without a mapping.
-    
-    const myNames = [auth.user.username, auth.user.name].filter(Boolean).map(n => n?.toLowerCase());
+    const myNames = [auth.user.username, auth.user.name, "Ken Kaneki"].filter(Boolean).map(n => n?.toLowerCase().trim());
 
     bidsByPost.forEach((postBids, postUrl) => {
-        let currentHighBid = 0;
-        let currentHighBidder = "";
-        let myHighestBid = 0;
-        
-        // Find the watcher for this post to get the label
+        const itemsMap = new Map(); // item_number -> { currentHighBid, currentHighBidder, myHighestBid }
+
         const watcher = watchers.find((w: any) => w.post_url === postUrl);
         const postLabel = watcher?.my_name || postUrl;
 
         postBids.forEach((bid: any) => {
+            const itemNo = bid.item_number || 0;
+            if (!itemsMap.has(itemNo)) {
+                itemsMap.set(itemNo, { 
+                    currentHighBid: 0, 
+                    currentHighBidder: "", 
+                    myHighestBid: 0,
+                    lastBidTime: null
+                });
+            }
+            
+            const itemState = itemsMap.get(itemNo);
             const amount = Number(bid.amount);
-            const bidder = bid.bidder_name || "Unknown";
-            const isMe = myNames.some(n => bidder.toLowerCase().includes(n));
+            const bidder = (bid.bidder_name || "Unknown").trim();
+            const bidderLower = bidder.toLowerCase();
+            const isMe = myNames.some(n => bidderLower.includes(n));
 
+            // Update high bid for this item
+            if (amount > itemState.currentHighBid) {
+                itemState.currentHighBid = amount;
+                itemState.currentHighBidder = bidder;
+                itemState.lastBidTime = bid.timestamp;
+            }
+            
+            // Track my highest bid for this item
             if (isMe) {
-                // Found a bid by me
+                if (amount > itemState.myHighestBid) itemState.myHighestBid = amount;
+                
                 activities.push({
                     type: 'bid_placed',
                     post_url: postUrl,
                     post_label: postLabel,
+                    item_number: itemNo,
                     my_bid: amount,
                     timestamp: bid.timestamp
                 });
             }
-
-            if (amount > currentHighBid) {
-                // New high bid
-                // ... (rest of logic)
-                currentHighBid = amount;
-                currentHighBidder = bidder;
-            }
-            
-            if (isMe) {
-                if (amount > myHighestBid) myHighestBid = amount;
-            }
         });
 
-        // After processing all bids, if I participated (myHighestBid > 0) AND I am not the winner
-        if (myHighestBid > 0) {
-             const isWinnerMe = myNames.some(n => currentHighBidder.toLowerCase().includes(n));
-             if (!isWinnerMe && currentHighBid > myHighestBid) {
-                 activities.push({
-                     type: 'outbidded',
-                     post_url: postUrl,
-                     post_label: postLabel,
-                     my_bid: myHighestBid,
-                     winning_bid: currentHighBid,
-                     winner: currentHighBidder,
-                     timestamp: new Date().toISOString() // We don't have exact time of outbid easily without replaying, just show current state
-                 });
+        // Now check status for each item
+        itemsMap.forEach((state, itemNo) => {
+             if (state.myHighestBid > 0) {
+                 const isWinnerMe = myNames.some(n => state.currentHighBidder.toLowerCase().includes(n));
+                 
+                 if (isWinnerMe) {
+                     winningBids.push({
+                         post_url: postUrl,
+                         post_label: postLabel,
+                         item_number: itemNo,
+                         my_bid: state.currentHighBid,
+                         timestamp: state.lastBidTime
+                     });
+                 } else if (state.currentHighBid > state.myHighestBid) {
+                     activities.push({
+                         type: 'outbidded',
+                         post_url: postUrl,
+                         post_label: postLabel,
+                         item_number: itemNo,
+                         my_bid: state.myHighestBid,
+                         winning_bid: state.currentHighBid,
+                         winner: state.currentHighBidder,
+                         timestamp: new Date().toISOString() // This is a status check, so timestamp is "now" effectively
+                     });
+                 }
              }
-        }
+        });
     });
 
     // Sort activities by timestamp desc
     activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    winningBids.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    return NextResponse.json({ ok: true, activities });
+    return NextResponse.json({ ok: true, activities, winningBids });
   } catch (err: any) {
     return NextResponse.json(
       { ok: false, error: err?.message ?? "Unknown error" },
