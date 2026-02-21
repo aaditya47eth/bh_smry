@@ -81,6 +81,7 @@ type AuctionWatcherRow = {
   is_bookmarked?: boolean;
   created_by: string;
   created_at: string;
+  updated_at?: string; // Added updated_at
   images?: string[];
   last_bid_amount?: number | null;
   last_bid_at?: string | null;
@@ -89,10 +90,11 @@ type AuctionWatcherRow = {
 type BidRow = {
   id: number;
   post_url: string;
-  user_name: string;
+  bidder_name: string; // Changed from user_name to match DB
   user_id: string;
   bid_text: string;
-  price: number | null;
+  amount: number | null; // Changed from price to amount to match DB
+  item_number?: number;
   timestamp: string;
   image_text?: string;
   profile_pic?: string;
@@ -102,9 +104,18 @@ type ActivityLogItem = {
   type: string;
   post_url: string;
   post_label: string;
+  item_number?: number;
   my_bid: number;
   winning_bid: number;
   winner: string;
+  timestamp: string;
+};
+
+type WinningBidItem = {
+  post_url: string;
+  post_label: string;
+  item_number: number;
+  my_bid: number;
   timestamp: string;
 };
 
@@ -193,6 +204,7 @@ export default function AdminPage() {
   const [bidsError, setBidsError] = useState<string | null>(null);
 
   const [activityLog, setActivityLog] = useState<ActivityLogItem[]>([]);
+  const [winningBids, setWinningBids] = useState<WinningBidItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
   const [showAddAuction, setShowAddAuction] = useState(false);
@@ -401,9 +413,10 @@ export default function AdminPage() {
     setActivityLoading(true);
     try {
       const res = await fetch("/api/admin/activity-log", { cache: "no-store" });
-      const json = (await res.json()) as ApiOk<{ activities: ActivityLogItem[] }> | ApiErr;
+      const json = (await res.json()) as ApiOk<{ activities: ActivityLogItem[]; winningBids: WinningBidItem[] }> | ApiErr;
       if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
       setActivityLog(json.activities);
+      setWinningBids(json.winningBids || []);
     } catch (e: any) {
       console.error("Failed to load activity log", e);
     } finally {
@@ -488,14 +501,75 @@ export default function AdminPage() {
     } catch {}
   }
 
-  async function openBidsModal(watcherId: string | number) {
-    setViewBidsWatcherId(String(watcherId));
+  const [nextRefreshTime, setNextRefreshTime] = useState<Date | null>(null);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<Date | null>(null);
+  const [timerString, setTimerString] = useState("");
+
+  // Auto-refresh bids when modal is open
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (viewBidsWatcherId) {
+      interval = setInterval(() => {
+        fetch(`/api/admin/auctions/${encodeURIComponent(viewBidsWatcherId)}/bids`)
+          .then((res) => res.json())
+          .then((json: ApiOk<{ bids: BidRow[] }> | ApiErr) => {
+            if (json.ok) {
+              setBids(json.bids);
+            }
+          })
+          .catch((err) => console.error("Auto-refresh failed", err));
+      }, 5000); // Refresh every 5 seconds
+    }
+    return () => clearInterval(interval);
+  }, [viewBidsWatcherId]);
+
+  useEffect(() => {
+      if (!nextRefreshTime) {
+          setTimerString("");
+          return;
+      }
+      const interval = setInterval(() => {
+          const now = new Date().getTime();
+          const diff = nextRefreshTime.getTime() - now;
+          if (diff <= 0) {
+              setTimerString("Refreshing soon...");
+          } else {
+              const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+              const s = Math.floor((diff % (1000 * 60)) / 1000);
+              setTimerString(`Next refresh in: ${m}m ${s}s`);
+          }
+      }, 1000);
+      return () => clearInterval(interval);
+  }, [nextRefreshTime]);
+
+  async function openBidsModal(watcher: AuctionWatcherRow) {
+    setViewBidsWatcherId(String(watcher.id));
     setBidsLoading(true);
     setBidsError(null);
     setBids([]);
+    
+    // Calculate next refresh (2 mins from last update)
+    if (watcher.updated_at) {
+        const lastUpdate = new Date(watcher.updated_at);
+        if (!isNaN(lastUpdate.getTime())) {
+            setLastUpdatedTime(lastUpdate);
+            if (watcher.is_running) {
+                const next = new Date(lastUpdate.getTime() + 120000); // 2 mins
+                setNextRefreshTime(next);
+            } else {
+                setNextRefreshTime(null);
+            }
+        } else {
+            setLastUpdatedTime(null);
+            setNextRefreshTime(null);
+        }
+    } else {
+        setNextRefreshTime(null);
+        setLastUpdatedTime(null);
+    }
+
     try {
-      // Note: Make sure the API route exists at /api/admin/auctions/[id]/bids
-      const res = await fetch(`/api/admin/auctions/${encodeURIComponent(String(watcherId))}/bids`);
+      const res = await fetch(`/api/admin/auctions/${encodeURIComponent(String(watcher.id))}/bids`);
       const json = (await res.json()) as ApiOk<{ bids: BidRow[] }> | ApiErr;
       if (!res.ok || !json.ok) throw new Error(!json.ok ? json.error : "Failed");
       setBids(json.bids);
@@ -898,56 +972,100 @@ export default function AdminPage() {
             })}
           </div>
 
-          {/* Activity Log Widget - Only visible in Auction section */}
+          {/* Activity Log & My Bids - Only visible in Auction section */}
           {section === "auction" && (
-            <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm" style={{ minHeight: '400px', maxHeight: 'calc(100vh - 200px)' }}>
-              <div className="border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-3 font-semibold text-slate-900 dark:text-neutral-100">
-                Activity Log
-              </div>
-              <div className="flex-1 overflow-y-auto p-0">
-                {activityLoading ? (
-                  <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">Loading...</div>
-                ) : activityLog.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">No activity yet.</div>
-                ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-neutral-700">
-                    {activityLog.map((log, i) => (
-                      <div key={i} className="p-3 hover:bg-slate-50 dark:hover:bg-neutral-700/50">
-                        <div className="flex items-start gap-2">
-                          <div className={`mt-0.5 flex h-2 w-2 shrink-0 rounded-full ${log.type === 'outbidded' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-medium text-slate-900 dark:text-neutral-100">
-                              {log.type === 'outbidded' ? 'Outbidded!' : 'Bid Placed'}
-                            </div>
-                            <a 
-                              href={log.post_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="mt-0.5 block truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
-                              title={log.post_label}
-                            >
-                              {log.post_label}
-                            </a>
-                            <div className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
-                              {log.type === 'outbidded' ? (
-                                  <>
-                                      You: ₹{log.my_bid} <br/>
-                                      Winner: {log.winner} (₹{log.winning_bid})
-                                  </>
-                              ) : (
-                                  <>You bid ₹{log.my_bid}</>
-                              )}
-                            </div>
-                            <div className="mt-1 text-[10px] text-slate-400">
-                              {new Date(log.timestamp).toLocaleString()}
+            <div className="flex flex-col gap-4">
+                {/* Activity Log */}
+                <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm" style={{ maxHeight: '300px' }}>
+                  <div className="border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-2 font-semibold text-sm text-slate-900 dark:text-neutral-100">
+                    Activity Log
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-0">
+                    {activityLoading ? (
+                      <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">Loading...</div>
+                    ) : activityLog.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">No activity yet.</div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-neutral-700">
+                        {activityLog.map((log, i) => (
+                          <div key={i} className="p-2 hover:bg-slate-50 dark:hover:bg-neutral-700/50">
+                            <div className="flex items-start gap-2">
+                              <div className={`mt-1 flex h-1.5 w-1.5 shrink-0 rounded-full ${log.type === 'outbidded' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[10px] font-medium text-slate-900 dark:text-neutral-100">
+                                  {log.type === 'outbidded' ? 'Outbidded!' : 'Bid Placed'}
+                                </div>
+                                <a 
+                                  href={log.post_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="block truncate text-[10px] text-blue-600 hover:underline dark:text-blue-400"
+                                  title={log.post_label}
+                                >
+                                  {log.post_label} {log.item_number ? `(Item ${log.item_number})` : ''}
+                                </a>
+                                <div className="text-[10px] text-slate-600 dark:text-neutral-400">
+                                  {log.type === 'outbidded' ? (
+                                      <>
+                                          You: {log.my_bid} <span className="text-slate-300">|</span> Win: {log.winning_bid} ({log.winner})
+                                      </>
+                                  ) : (
+                                      <>You bid {log.my_bid}</>
+                                  )}
+                                </div>
+                                <div className="text-[9px] text-slate-400">
+                                  {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+
+                {/* My Bids */}
+                <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-sm" style={{ maxHeight: '300px' }}>
+                  <div className="border-b border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 px-4 py-2 font-semibold text-sm text-slate-900 dark:text-neutral-100">
+                    My Winning Bids
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-0">
+                    {activityLoading ? (
+                      <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">Loading...</div>
+                    ) : winningBids.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-500 dark:text-neutral-400">No winning bids yet.</div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-neutral-700">
+                        {winningBids.map((bid, i) => (
+                          <div key={i} className="p-2 hover:bg-slate-50 dark:hover:bg-neutral-700/50">
+                            <div className="flex items-start gap-2">
+                              <div className="mt-1 flex h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                              <div className="min-w-0 flex-1">
+                                <a 
+                                  href={bid.post_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="block truncate text-[10px] font-medium text-blue-600 hover:underline dark:text-blue-400"
+                                  title={bid.post_label}
+                                >
+                                  {bid.post_label}
+                                </a>
+                                <div className="flex justify-between text-[10px] text-slate-600 dark:text-neutral-400">
+                                    <span>Item {bid.item_number}</span>
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{bid.my_bid}</span>
+                                </div>
+                                <div className="text-[9px] text-slate-400">
+                                  {bid.timestamp ? new Date(bid.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
             </div>
           )}
         </div>
@@ -1766,7 +1884,7 @@ export default function AdminPage() {
                               Created by: {w.created_by} • {new Date(w.created_at).toLocaleString()}
                               {w.last_bid_amount && (
                                 <span className="ml-2 font-medium text-emerald-600 dark:text-emerald-400">
-                                    • Last Bid: ₹{w.last_bid_amount} ({w.last_bid_at ? new Date(w.last_bid_at).toLocaleTimeString() : '?'})
+                                    • Last Bid: {w.last_bid_amount} ({w.last_bid_at ? new Date(w.last_bid_at).toLocaleTimeString() : '?'})
                                 </span>
                               )}
                             </div>
@@ -1780,7 +1898,7 @@ export default function AdminPage() {
                             </button>
                             <button
                               className="rounded-md border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-700 dark:bg-neutral-900"
-                              onClick={() => openBidsModal(w.id)}
+                              onClick={() => openBidsModal(w)}
                             >
                               View Bids
                             </button>
@@ -1923,7 +2041,21 @@ export default function AdminPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-neutral-700 px-5 py-4">
-              <div className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Bids Found</div>
+              <div className="flex items-center gap-4">
+                  <div className="text-lg font-semibold text-slate-900 dark:text-neutral-100">Bids Found</div>
+                  <div className="flex items-center gap-2">
+                      {lastUpdatedTime && (
+                          <div className="text-xs text-slate-500 dark:text-neutral-400">
+                              Last updated: {lastUpdatedTime.toLocaleTimeString()}
+                          </div>
+                      )}
+                      {timerString && (
+                          <div className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {timerString}
+                          </div>
+                      )}
+                  </div>
+              </div>
               <button
                 className="rounded-md p-1 hover:bg-slate-100 dark:hover:bg-neutral-700"
                 onClick={() => setViewBidsWatcherId(null)}
@@ -1942,47 +2074,111 @@ export default function AdminPage() {
                   No bids found yet for this post.
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {bids.map((bid) => (
-                    <div
-                      key={bid.id}
-                      className="flex items-start gap-4 rounded-lg border border-slate-100 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-900 p-4"
-                    >
-                      {bid.profile_pic ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={bid.profile_pic}
-                          alt=""
-                          className="h-10 w-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 dark:bg-neutral-700 text-slate-500 dark:text-neutral-400 font-bold">
-                          {bid.user_name?.charAt(0) ?? "?"}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium text-slate-900 dark:text-neutral-100">
-                            {bid.user_name}
-                            <span className="ml-2 text-xs font-normal text-slate-500 dark:text-neutral-400">
-                              {new Date(bid.timestamp).toLocaleString()}
-                            </span>
-                          </div>
-                          {bid.price ? (
-                            <div className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
-                              ₹{bid.price}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-700 dark:text-neutral-300 whitespace-pre-wrap">{bid.bid_text}</div>
-                        {bid.image_text ? (
-                          <div className="mt-2 text-xs text-slate-500 dark:text-neutral-400">
-                            <span className="font-semibold">OCR Text:</span> {bid.image_text}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+                  {Array.from({ length: 50 }, (_, i) => i + 1).map((itemNum) => {
+                    const itemBids = bids.filter((b) => b.item_number === itemNum);
+                    if (itemBids.length === 0) return null; // Only show items with activity? Or show all? User said "around 30..40 items". Let's show only active ones or up to max found.
+                    // Actually, let's show items if they have bids.
+                    // Or better: Find max item number and show grid up to that.
+                    return null; 
+                  })}
+                  
+                  {(() => {
+                      // Group bids by item
+                      const itemMap = new Map<number, BidRow[]>();
+                      let maxItem = 0;
+                      bids.forEach(b => {
+                          if (b.item_number) {
+                              if (!itemMap.has(b.item_number)) itemMap.set(b.item_number, []);
+                              itemMap.get(b.item_number)?.push(b);
+                              if (b.item_number > maxItem) maxItem = b.item_number;
+                          }
+                      });
+                      
+                      // Ensure we show at least up to 40 if data exists, or just dynamic
+                      const limit = Math.max(maxItem, 40);
+                      const gridItems = [];
+
+                      for (let i = 1; i <= limit; i++) {
+                          const itemBids = itemMap.get(i) || [];
+                          // Sort by amount desc, then time desc
+                          itemBids.sort((a, b) => {
+                              const amountA = a.amount || 0;
+                              const amountB = b.amount || 0;
+                              if (amountA !== amountB) return amountB - amountA;
+                              
+                              const timeA = new Date(a.timestamp || 0).getTime();
+                              const timeB = new Date(b.timestamp || 0).getTime();
+                              return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+                          });
+                          
+                          const highestBid = itemBids[0];
+                          const myBids = itemBids.filter(b => (b.bidder_name || "").trim().toLowerCase() === "ken kaneki"); 
+                          
+                          let statusColor = "bg-slate-50 dark:bg-neutral-900 border-slate-200 dark:border-neutral-700"; // Default
+                          let statusText = "";
+
+                          if (highestBid) {
+                              const highestUser = (highestBid.bidder_name || "").trim().toLowerCase();
+                              if (highestUser === "ken kaneki") {
+                                  statusColor = "bg-emerald-100 border-emerald-300 dark:bg-emerald-900/40 dark:border-emerald-700"; // Green (Mine)
+                                  statusText = "Winning";
+                              } else if (myBids.length > 0) {
+                                  statusColor = "bg-rose-100 border-rose-300 dark:bg-rose-900/40 dark:border-rose-700"; // Red (Overbidded)
+                                  statusText = "Outbidded";
+                              } else {
+                                  statusColor = "bg-amber-100 border-amber-300 dark:bg-amber-900/40 dark:border-amber-700"; // Yellow (Not bidded)
+                              }
+                          }
+
+                          gridItems.push(
+                              <div key={i} className={`relative flex flex-col justify-between rounded-md border p-1.5 shadow-sm transition-all hover:shadow-md ${statusColor}`}>
+                                  <div className="flex items-start justify-between">
+                                      <span className="text-xs font-bold text-slate-700 dark:text-neutral-200">#{i}</span>
+                                      {itemBids.length > 0 && (
+                                          <span className="rounded-full bg-black/5 px-1 py-0.5 text-[8px] font-medium text-slate-600 dark:bg-white/10 dark:text-neutral-300">
+                                              {itemBids.length}
+                                          </span>
+                                      )}
+                                  </div>
+                                  
+                                  <div className="mt-1">
+                                      {highestBid ? (
+                                          <>
+                                              <div className="text-sm font-bold text-slate-900 dark:text-white">
+                                                  {highestBid.amount != null ? highestBid.amount : '?'}
+                                              </div>
+                                              <div className="mt-0.5 truncate text-[9px] font-medium text-slate-800 dark:text-neutral-100" title={highestBid.bidder_name}>
+                                                  {highestBid.bidder_name || "Unknown"}
+                                              </div>
+                                              <div className="mt-0.5 text-[8px] text-slate-500 dark:text-neutral-400">
+                                                  {(() => {
+                                                      try {
+                                                          const d = new Date(highestBid.timestamp);
+                                                          return isNaN(d.getTime()) ? "?" : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                                      } catch { return "?"; }
+                                                  })()}
+                                              </div>
+                                              {statusText && (
+                                                  <div className={`mt-0.5 text-[8px] font-bold uppercase tracking-wider ${
+                                                      statusText === 'Winning' ? 'text-emerald-700 dark:text-emerald-400' :
+                                                      'text-rose-700 dark:text-rose-400'
+                                                  }`}>
+                                                      {statusText}
+                                                  </div>
+                                              )}
+                                          </>
+                                      ) : (
+                                          <div className="mt-1 text-center text-[9px] text-slate-400 italic">
+                                              -
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          );
+                      }
+                      return gridItems;
+                  })()}
                 </div>
               )}
             </div>
@@ -2105,26 +2301,41 @@ export default function AdminPage() {
                         const items = e.clipboardData?.items;
                         if (!items) return;
 
-                        for (const item of items) {
+                        const filesToUpload: File[] = [];
+                        const textItems: DataTransferItem[] = [];
+
+                        // Extract synchronously
+                        for (let i = 0; i < items.length; i++) {
+                            const item = items[i];
                             if (item.type.startsWith("image/")) {
                                 const file = item.getAsFile();
-                                if (file) {
-                                    setUploadingImage(true);
-                                    try {
-                                        const url = await uploadToCloudinary(file);
-                                        setAuctionForm(prev => ({ ...prev, images: [...prev.images, url] }));
-                                    } catch (err: any) {
-                                        alert("Failed to upload image: " + err.message);
-                                    } finally {
-                                        setUploadingImage(false);
-                                    }
-                                }
+                                if (file) filesToUpload.push(file);
                             } else if (item.type === "text/plain") {
-                                item.getAsString((text) => {
-                                    if (text.startsWith("http")) {
-                                        setAuctionForm(prev => ({ ...prev, images: [...prev.images, text] }));
-                                    }
-                                });
+                                textItems.push(item);
+                            }
+                        }
+
+                        // Handle text (URLs)
+                        for (const item of textItems) {
+                             item.getAsString((text) => {
+                                if (text.startsWith("http")) {
+                                    setAuctionForm(prev => ({ ...prev, images: [...prev.images, text] }));
+                                }
+                            });
+                        }
+
+                        // Handle images
+                        if (filesToUpload.length > 0) {
+                            setUploadingImage(true);
+                            try {
+                                for (const file of filesToUpload) {
+                                    const url = await uploadToCloudinary(file);
+                                    setAuctionForm(prev => ({ ...prev, images: [...prev.images, url] }));
+                                }
+                            } catch (err: any) {
+                                alert("Failed to upload image: " + err.message);
+                            } finally {
+                                setUploadingImage(false);
                             }
                         }
                     }}
