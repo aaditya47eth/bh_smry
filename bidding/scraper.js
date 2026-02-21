@@ -219,143 +219,138 @@ async function scrapeGroup(watcher) {
             const { results: posts, foundStopSignal } = await page.evaluate(() => {
                 const results = [];
                 let foundStopSignal = false;
-                const links = Array.from(document.querySelectorAll('a'));
                 
                 // Check page text for "LOT JP" signal
-                // We need to be careful not to count the same one multiple times if it stays on screen
-                // But for this simple logic, we'll just check if it exists in the current view
                 if (document.body.innerText.includes('LOT JP')) {
                     foundStopSignal = true;
                 }
 
-                links.forEach(a => {
+                // 1. Find all "Post_No" links first to establish boundaries
+                const allLinks = Array.from(document.querySelectorAll('a'));
+                const postLinks = [];
+                
+                allLinks.forEach(a => {
                     const text = a.innerText.trim();
-                    const href = a.href;
-                    
                     if (text.includes('Post_No.')) {
-                        // Extract clean Post No
-                        let postNoLabel = text;
-                        const idMatch = text.match(/Post_No\.(\d+-\d+)/);
-                        if (idMatch) {
-                            postNoLabel = `Post_No.${idMatch[1]}`;
-                        } else {
-                            postNoLabel = text.replace(/\s+/g, ' ').substring(0, 30);
-                        }
-
-                        let cleanUrl = href;
-                        try {
-                            const u = new URL(href);
-                            if (href.includes('/media/set/') || href.includes('.php')) {
-                                 cleanUrl = href; 
-                            } else {
-                                 cleanUrl = `${u.origin}${u.pathname}`;
-                            }
-                            if (cleanUrl.includes('&type')) {
-                                cleanUrl = cleanUrl.split('&type')[0];
-                            }
-
-                            // Skip main group URL if matched by accident
-                            if (cleanUrl.includes('facebook.com/groups/307437849922910') && !cleanUrl.includes('/posts/') && !cleanUrl.includes('/permalink/')) {
-                                return; // Skip this iteration
-                            }
-                        } catch (e) {}
-
-                        let isRecent = true;
-                        let timeText = "Unknown";
-                        const feedUnit = a.closest('div[role="article"]') || a.closest('div[data-pagelet]') || a.parentElement.parentElement.parentElement;
-                        
-                        // Time extraction disabled
-                        /*
-                        if (feedUnit) {
-                            // Improved Time Extraction
-                            const candidates = Array.from(feedUnit.querySelectorAll('a, span'));
-                            
-                            for (const el of candidates) {
-                                const text = el.innerText ? el.innerText.trim() : '';
-                                const label = el.getAttribute('aria-label') || '';
-                                
-                                // Regex for: "1h", "23 m", "Yesterday", "July 25", "20 February"
-                                // We check for short strings to avoid matching long post text that happens to start with a date word
-                                const isDatePattern = /^(Just now|Yesterday|\d+\s*(m|min|mins|h|hr|hrs|d|day|days)|[A-Z][a-z]{2,9}\s\d{1,2}|(\d{1,2}\s[A-Z][a-z]{2,9}))/i;
-                                
-                                if (text.length < 30 && isDatePattern.test(text)) {
-                                    timeText = text;
-                                    break;
-                                }
-                                if (label.length < 30 && isDatePattern.test(label)) {
-                                    timeText = label;
-                                    break;
-                                }
-                            }
-
-                            // Filter based on extracted time
-                            if (timeText !== "Unknown") {
-                                const dayMatch = timeText.match(/(\d+)\s*(d|day|days)/i);
-                                if (dayMatch) {
-                                    if (parseInt(dayMatch[1], 10) > 24) isRecent = false;
-                                }
-                                if (/\d{4}/.test(timeText) && !timeText.includes(new Date().getFullYear().toString())) {
-                                    isRecent = false;
-                                }
-                            }
-                        }
-                        */
-
-                        // Extract Images from Feed Unit
-                        let extractedImages = [];
-                        
-                        // Strategy: Find images by visual proximity (vertical distance)
-                        // Since DOM traversal failed, we assume images are visually below the header link.
-                        const linkRect = a.getBoundingClientRect();
-                        const allSpecificImgs = Array.from(document.querySelectorAll('img.xz74otr'));
-                        
-                        // Filter images that are below the link and within reasonable distance (e.g. 800px)
-                        let nearbyImages = allSpecificImgs.filter(img => {
-                            const imgRect = img.getBoundingClientRect();
-                            const verticalDist = imgRect.top - linkRect.bottom;
-                            // Check if image is below the link (positive distance) and not too far (e.g. 1000px)
-                            // Also check if it's not too far to the left/right (optional, but good for safety)
-                            return verticalDist >= -50 && verticalDist < 1200; 
-                        });
-
-                        // If no specific images, try generic large images with same logic
-                        if (nearbyImages.length === 0) {
-                             const allImgs = Array.from(document.querySelectorAll('img'));
-                             nearbyImages = allImgs.filter(img => {
-                                const imgRect = img.getBoundingClientRect();
-                                const verticalDist = imgRect.top - linkRect.bottom;
-                                return verticalDist >= -50 && verticalDist < 1200 && 
-                                       imgRect.width > 150 && imgRect.height > 150 && 
-                                       !img.src.includes('emoji') && !img.src.includes('static.xx.fbcdn.net');
-                             });
-                        }
-
-                        // Sort by vertical distance to get the ones closest to the header first
-                        nearbyImages.sort((a, b) => {
-                            const rectA = a.getBoundingClientRect();
-                            const rectB = b.getBoundingClientRect();
-                            return rectA.top - rectB.top;
-                        });
-
-                        // Take the first few (e.g. 5)
-                        extractedImages = nearbyImages.map(img => img.src).slice(0, 5);
-                        
-                        // if (extractedImages.length > 0) {
-                        //    console.log(`      [Debug] Found ${extractedImages.length} images by proximity for ${postNoLabel}`);
-                        // }
-
-                        if (isRecent) {
-                            results.push({ 
-                                url: cleanUrl, 
-                                time: timeText, 
-                                type: 'post_no', 
-                                post_no: postNoLabel,
-                                images: extractedImages,
-                                debug_img_count: extractedImages.length // Add count for logging
-                            });
-                        }
+                        postLinks.push({ el: a, text: text, href: a.href });
                     }
                 });
+
+                // Helper to check if image is a real product image (not emoji/icon)
+                const isRealImage = (img) => {
+                    const rect = img.getBoundingClientRect();
+                    const src = img.src || '';
+                    
+                    // Size check: must be substantial
+                    if (rect.width < 150 || rect.height < 150) return false;
+                    
+                    // URL pattern check for emojis and static assets
+                    if (src.includes('emoji') || 
+                        src.includes('/images/emoji') || 
+                        src.includes('static.xx.fbcdn.net') || 
+                        src.includes('/rsrc.php/') ||
+                        src.includes('/16/') || // Common emoji size path
+                        src.includes('/32/') || // Common emoji size path
+                        src.match(/\/p\d+x\d+\//)) { // Profile pic patterns often like p100x100
+                        return false;
+                    }
+                    
+                    return true;
+                };
+
+                // 2. Process each post link
+                for (let i = 0; i < postLinks.length; i++) {
+                    const currentLink = postLinks[i];
+                    const nextLink = postLinks[i+1]; // Might be undefined if last
+                    
+                    const a = currentLink.el;
+                    const text = currentLink.text;
+                    const href = currentLink.href;
+
+                    // Extract clean Post No
+                    let postNoLabel = text;
+                    const idMatch = text.match(/Post_No\.(\d+-\d+)/);
+                    if (idMatch) {
+                        postNoLabel = `Post_No.${idMatch[1]}`;
+                    } else {
+                        postNoLabel = text.replace(/\s+/g, ' ').substring(0, 30);
+                    }
+
+                    let cleanUrl = href;
+                    try {
+                        const u = new URL(href);
+                        if (href.includes('/media/set/') || href.includes('.php')) {
+                                cleanUrl = href; 
+                        } else {
+                                cleanUrl = `${u.origin}${u.pathname}`;
+                        }
+                        if (cleanUrl.includes('&type')) {
+                            cleanUrl = cleanUrl.split('&type')[0];
+                        }
+
+                        // Skip main group URL if matched by accident
+                        if (cleanUrl.includes('facebook.com/groups/307437849922910') && !cleanUrl.includes('/posts/') && !cleanUrl.includes('/permalink/')) {
+                            continue;
+                        }
+                    } catch (e) {}
+
+                    let isRecent = true;
+                    let timeText = "Unknown";
+
+                    // Extract Images using BOUNDARY logic
+                    let extractedImages = [];
+                    
+                    const linkRect = a.getBoundingClientRect();
+                    const nextLinkRect = nextLink ? nextLink.el.getBoundingClientRect() : null;
+                    
+                    // Define search area
+                    // Start: slightly above link bottom (to catch aligned images)
+                    const searchTop = linkRect.bottom - 20; 
+                    // End: Top of next post OR a max limit (e.g. 2000px)
+                    let searchBottom = linkRect.bottom + 2000;
+                    if (nextLinkRect && nextLinkRect.top > linkRect.bottom) {
+                        // If next post is below this one, use it as boundary
+                        searchBottom = nextLinkRect.top;
+                    }
+
+                    // Find images in this range
+                    const allSpecificImgs = Array.from(document.querySelectorAll('img.xz74otr'));
+                    
+                    let nearbyImages = allSpecificImgs.filter(img => {
+                        const imgRect = img.getBoundingClientRect();
+                        const imgMid = imgRect.top + (imgRect.height / 2);
+                        return imgMid > searchTop && imgMid < searchBottom && isRealImage(img);
+                    });
+
+                    // Fallback to generic images if specific class not found
+                    if (nearbyImages.length === 0) {
+                            const allImgs = Array.from(document.querySelectorAll('img'));
+                            nearbyImages = allImgs.filter(img => {
+                            const imgRect = img.getBoundingClientRect();
+                            const imgMid = imgRect.top + (imgRect.height / 2);
+                            return imgMid > searchTop && imgMid < searchBottom && isRealImage(img);
+                            });
+                    }
+
+                    // Sort by vertical distance
+                    nearbyImages.sort((a, b) => {
+                        return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+                    });
+
+                    extractedImages = nearbyImages.map(img => img.src).slice(0, 5);
+
+                    if (isRecent) {
+                        results.push({ 
+                            url: cleanUrl, 
+                            time: timeText, 
+                            type: 'post_no', 
+                            post_no: postNoLabel,
+                            images: extractedImages,
+                            debug_img_count: extractedImages.length
+                        });
+                    }
+                }
+                
                 return { results, foundStopSignal };
             });
 
