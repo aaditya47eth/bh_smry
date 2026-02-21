@@ -63,14 +63,14 @@ async function initBrowser() {
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
 }
 
-async function scrapePostBids(watcher) {
-    console.log(`💰 Scraping Bids: ${watcher.post_url}`);
+async function scrapePostBids(watcher, isFirstScrape) {
+    console.log(`💰 Scraping Bids: ${watcher.post_url} (First time: ${isFirstScrape})`);
     try {
         await page.goto(watcher.post_url, { waitUntil: 'networkidle2', timeout: 60000 });
         
         // Scroll to load comments
         console.log("   Expanding comments...");
-        await page.evaluate(async () => {
+        await page.evaluate(async (isFirst) => {
             // Helper to find all scrollable containers
             const findScrollables = () => {
                 const all = document.querySelectorAll('*');
@@ -85,8 +85,23 @@ async function scrapePostBids(watcher) {
             };
 
             // Scroll loop
-            for (let i = 0; i < 5; i++) {
-                // Scroll window
+            // First time: 5 iterations. Subsequent times: 2 iterations.
+            const iterations = isFirst ? 5 : 2;
+            
+            for (let i = 0; i < iterations; i++) {
+                // Scroll slowly to bottom
+                // Instead of one big jump, do small jumps
+                const totalHeight = document.body.scrollHeight;
+                const scrollStep = 300;
+                let currentScroll = window.scrollY;
+                
+                // Scroll down in chunks
+                for (let j = 0; j < 10; j++) {
+                    window.scrollBy(0, scrollStep);
+                    await new Promise(r => setTimeout(r, 200)); // Wait 200ms between small scrolls
+                }
+                
+                // Final jump to ensure bottom
                 window.scrollTo(0, document.body.scrollHeight);
                 
                 // Scroll all scrollable containers
@@ -95,7 +110,7 @@ async function scrapePostBids(watcher) {
                     el.scrollTop = el.scrollHeight;
                 });
                 
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 2000)); // Wait 2s for loading
 
                 // Try to click "View more comments"
                 // Look for buttons, spans, divs with specific text
@@ -126,20 +141,34 @@ async function scrapePostBids(watcher) {
                     await new Promise(r => setTimeout(r, 3000));
                 }
 
-                // NEW: Try to click "See more" within comments
-                const seeMores = Array.from(document.querySelectorAll('div[role="button"], span[role="button"], a[role="button"]'))
-                    .filter(el => {
-                        const text = el.innerText.trim().toLowerCase();
-                        return text === 'see more' || text === '… see more';
-                    });
+                // NEW: Click "See more" ONLY for seller comments
+                // We assume the seller is the one posting the list
+                const articles = Array.from(document.querySelectorAll('div[role="article"]'));
                 
-                for (const btn of seeMores) {
-                    // console.log('   Clicking See More...');
-                    btn.click();
-                    await new Promise(r => setTimeout(r, 500)); 
+                for (const article of articles) {
+                    // Quick check for seller name in the article text
+                    // This is faster than full parsing
+                    const textLower = article.innerText.toLowerCase();
+                    if (textLower.includes('pranakorntoy') || textLower.includes('ry pnktoy')) {
+                         // Find "See more" inside this article
+                         const seeMoreBtn = Array.from(article.querySelectorAll('div[role="button"], span[role="button"], a[role="button"]'))
+                            .find(el => {
+                                const t = el.innerText.trim().toLowerCase();
+                                return t === 'see more' || t === '… see more';
+                            });
+                         
+                         if (seeMoreBtn) {
+                             console.log('   Expanding Seller Comment...');
+                             seeMoreBtn.click();
+                             await new Promise(r => setTimeout(r, 1000)); // Wait for text to expand
+                             // User said "scan the only first see more of the seller"
+                             // So we break after finding and clicking one, to avoid clicking old ones or duplicates
+                             break; 
+                         }
+                    }
                 }
             }
-        });
+        }, isFirstScrape); // Pass isFirstScrape to page context
 
         // Extract comments
         const comments = await page.evaluate(() => {
@@ -243,7 +272,8 @@ async function scrapePostBids(watcher) {
                 // Regex: Start or space, (1-2 digits), dot or space, (digits), end or space
                 // e.g. "25.50", "25 50", "3.50", "15.120"
                 // Use global match to find ALL bids in the text (e.g. list)
-                const bidRegex = /(?:^|\s|\n)(\d{1,2})[\.\s](\d+(?:\.\d+)?)(?:-|\s|$|\n)/g;
+                // Improved Regex: Allow spaces around separator: 1. 100
+                const bidRegex = /(?:^|\s|\n)(\d{1,2})\s*[\.\s]\s*(\d+(?:\.\d+)?)(?:-|\s|$|\n)/g;
                 let match;
                 while ((match = bidRegex.exec(text)) !== null) {
                     const itemNo = parseInt(match[1], 10);
@@ -284,13 +314,48 @@ async function scrapePostBids(watcher) {
                      }
                 }
             });
-            return results;
+
+            // Find the most recent activity (minimum age)
+            let minAgeMinutes = 999999;
+            const timeRegex = /(\d+)\s*(m|min|mins|h|hr|hrs|d|day|days)/i;
+            
+            // Helper to parse FB time string to minutes
+            const parseFbTime = (str) => {
+                if (!str) return 999999;
+                str = str.trim().toLowerCase();
+                if (str === 'just now') return 0;
+                if (str.includes('yesterday')) return 24 * 60; // > 10 mins
+                
+                const match = str.match(timeRegex);
+                if (match) {
+                    let val = parseInt(match[1], 10);
+                    const unit = match[2];
+                    if (unit.startsWith('h')) val *= 60;
+                    if (unit.startsWith('d')) val *= 60 * 24;
+                    return val;
+                }
+                return 999999;
+            };
+
+            // Scan all text nodes in the comments section for time-like strings
+            // This is a heuristic because finding the exact timestamp node is hard
+            const allLinks = Array.from(document.querySelectorAll('a, span, div'));
+            for (const el of allLinks) {
+                const t = el.innerText;
+                if (t && (t.match(/^\d+\s*[mhdy]$/) || t.match(/^\d+\s*(min|hr|day)s?$/) || t.toLowerCase() === 'just now')) {
+                    const age = parseFbTime(t);
+                    if (age < minAgeMinutes) minAgeMinutes = age;
+                }
+            }
+            
+            return { bids: results, minAgeMinutes };
         });
 
-        console.log(`   Found ${comments.length} potential bids.`);
+        console.log(`   Found ${comments.bids.length} potential bids.`);
+        console.log(`   Most recent activity: ${comments.minAgeMinutes === 999999 ? 'Unknown' : comments.minAgeMinutes + ' mins ago'}`);
 
         // Save to Supabase
-        for (const bid of comments) {
+        for (const bid of comments.bids) {
             // Clean up name if it contains time info (heuristic)
             // e.g. "Name 5m" or "Name 5 minutes ago"
             bid.user_name = bid.user_name.replace(/\s+\d+\s*(?:m|h|min|mins|hr|hrs|minute|minutes|hour|hours|d|day|days)(?:\s+ago)?$/i, '');
@@ -344,6 +409,15 @@ async function scrapePostBids(watcher) {
             .update({ updated_at: new Date().toISOString() })
             .eq('id', watcher.id);
 
+        // Check for inactivity (10 mins)
+        if (comments.minAgeMinutes > 10 && comments.minAgeMinutes !== 999999) {
+            console.log(`   ⚠️ No new comments for ${comments.minAgeMinutes} mins. Marking as ENDED.`);
+            await supabase
+                .from('bidding_watchers')
+                .update({ is_running: false })
+                .eq('id', watcher.id);
+        }
+
     } catch (e) {
         console.error(`Error scraping ${watcher.post_url}:`, e.message);
     }
@@ -374,6 +448,8 @@ async function run() {
     }
 
     // 2. Loop Watchers
+    const scrapedWatchers = new Set();
+
     while (true) {
         console.log("Checking for active watchers...");
         const watchers = await getActiveWatchers();
@@ -383,13 +459,16 @@ async function run() {
         }
 
         for (const watcher of watchers) {
-            // Check if due for refresh (2 minutes = 120000ms)
+            // Check if due for refresh (1 minute = 60000ms)
             const lastUpdate = new Date(watcher.updated_at || 0).getTime();
             const now = Date.now();
             const diff = now - lastUpdate;
             
-            if (diff >= 120000) { // 2 minutes
-                await scrapePostBids(watcher);
+            if (diff >= 60000) { // 1 minute
+                const isFirstScrape = !scrapedWatchers.has(watcher.id);
+                await scrapePostBids(watcher, isFirstScrape);
+                scrapedWatchers.add(watcher.id);
+                
                 // Wait a bit between posts
                 await new Promise(r => setTimeout(r, 5000));
             } else {

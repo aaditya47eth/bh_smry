@@ -120,6 +120,7 @@ type WinningBidItem = {
 };
 
 const ADMIN_SECTION_KEY = "adminPanelSelectedSection";
+const AUCTION_SORT_KEY = "adminPanelAuctionSort";
 const CLOUDINARY_CLOUD_NAME = "daye1yfzy";
 const CLOUDINARY_UPLOAD_PRESET = "bh_smry_upload";
 
@@ -276,6 +277,19 @@ export default function AdminPage() {
     void loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const savedSort = window.localStorage.getItem(AUCTION_SORT_KEY);
+    if (savedSort && ["time_added", "post_number", "recent_bid"].includes(savedSort)) {
+      setAuctionSort(savedSort as any);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUCTION_SORT_KEY, auctionSort);
+    }
+  }, [auctionSort]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1007,7 +1021,7 @@ export default function AdminPage() {
                                 <div className="text-[10px] text-slate-600 dark:text-neutral-400">
                                   {log.type === 'outbidded' ? (
                                       <>
-                                          You: {log.my_bid} <span className="text-slate-300">|</span> Win: {log.winning_bid} ({log.winner})
+                                          You: {log.my_bid} <span className="text-slate-300">|</span> Current Bid: {log.winning_bid}
                                       </>
                                   ) : (
                                       <>You bid {log.my_bid}</>
@@ -1875,10 +1889,15 @@ export default function AdminPage() {
                                 href={w.post_url} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-lg font-bold text-blue-600 hover:underline dark:text-blue-400"
+                                className={`text-lg font-bold hover:underline ${!w.is_running ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}
                               >
                                 {displayName}
                               </a>
+                              {!w.is_running && (
+                                <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                    ENDED
+                                </span>
+                              )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                               Created by: {w.created_by} • {new Date(w.created_at).toLocaleString()}
